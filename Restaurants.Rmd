@@ -1,0 +1,517 @@
+---
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+title: "Restaurant Inspections"
+---
+
+The data set at hand contains information on restaurant inspections in New York City carried out by the Department of Health and Hygiene (DOHMH).
+
+
+# **Exploration**
+
+```{r setup}
+library(tidyverse)
+```
+
+
+## Data Import
+
+```{r warning=FALSE}
+library(readxl)
+restaurants_raw <- read_excel("New_York_City_Restaurants.xlsx")
+restaurants_raw
+```
+
+
+## Variables
+
+* CAMIS: a unique identifier for the restaurant
+
+* DBA: name of (doing business as) the restaurant
+
+* BORO: borough in which the restaurant is located
+
+* BUILDING: building number for the restaurant
+
+* STREET: street name at which the restaurant is located
+
+* ZIPCODE: Zip code as per the (mailing) address of the restaurant
+
+* PHONE: phone number
+
+* CUISINE DESCRIPTION: cuisine of the restaurant
+
+* INSPECTION DATE: date of inspection
+
+* ACTION: action associated with the given inspection
+
+* VIOLATION CODE: violation code associated with the given inspection
+
+* VIOLATION DESCRIPTION: description that corresponds to violation code
+
+* CRITICAL FLAG: indication if violation is critical or not
+
+* SCORE: total score for a particular inspection
+
+* GRADE: ...
+
+* GRADE DATE: date when the current grade was issued to the restaurant
+
+* RECORD DATE: The date when the extract was run to produce this data set 
+
+* INSPECTION TYPE: The type of inspection. A combination of the program and inspection type
+
+
+```{r}
+names(restaurants_raw)
+```
+
+```{r}
+new_names <- c("id", "rest_name", "boro", "building", "street", "zipcode", "phone", "cuisine_descr",
+                            "inspection_date", "action", "violation_code", "violation_descr",
+                            "critical_flag", "score", "grade", "grade_date", "record_date", "inspection_type")
+names(restaurants_raw) <- new_names
+
+# Rename variables
+names(restaurants_raw)
+```
+
+
+## Structure of data set
+
+```{r}
+glimpse(restaurants_raw)
+```
+
+
+
+## Univariate analysis
+
+### Number of different restaurants
+
+```{r}
+# Number of different restaurants
+restaurants_raw %>% 
+  summarise(n_rest = n_distinct(id))
+```
+
+There are 26438 different restaurants. Next we check whether restaurant id's are associated with unique names:
+
+```{r}
+# First check for NA's
+nrow(restaurants_raw %>% 
+  select(id) %>% 
+  group_by(id) %>% 
+  summarise(n_na = sum(is.na(id))) %>% 
+  filter(n_na != 0))
+```
+There are no missing values for id.
+
+```{r}
+## Check if restaurant ids map to unique restaurant names
+# Are there any id's that map onto more than or less than one single name
+nrow(restaurants_raw %>% 
+  select(id, rest_name) %>% 
+  group_by(id) %>% 
+  summarise(n = n_distinct(rest_name)) %>% 
+  filter(n != 1)) 
+```
+
+It seems that each id is associated with a unique restaurant name, as one would expect. 
+
+
+### Boros
+
+```{r}
+restaurants_raw$boro <- as.factor(restaurants_raw$boro)
+
+levels(restaurants_raw$boro)[levels(restaurants_raw$boro) == "Missing"] <- NA
+summary(restaurants_raw$boro)
+```
+
+
+```{r}
+boros <- restaurants_raw %>% 
+  group_by(boro) %>% 
+  summarize(n = n_distinct(id)) %>% 
+  arrange(desc(n))
+boros
+```
+
+```{r}
+boros %>%  
+  ggplot(aes(x = reorder(boro, -n), y = n)) +
+  geom_bar(stat = "identity", color = "blue") +
+  xlab("boro")
+```
+
+
+### Cuisine description
+
+```{r}
+restaurants_raw$cuisine_descr <- as.factor(restaurants_raw$cuisine_descr)
+str(restaurants_raw$cuisine_descr)
+unique(restaurants_raw$cuisine_descr)
+
+# Relabel level "Not Listed/Not Applicable"
+sum(restaurants_raw$cuisine_descr == "Not Listed/Not Applicable")
+levels(restaurants_raw$cuisine_descr)[levels(restaurants_raw$cuisine_descr) == "Not Listed/Not Applicable"] <- NA
+sum(is.na(restaurants_raw$cuisine_descr))
+
+# Relabel level "CafÃƒÂ©/Coffee/Tea" which is at position 14 in levels vector
+cuis_ind <- levels(restaurants_raw$cuisine_descr) == levels(restaurants_raw$cuisine_descr)[14]
+levels(restaurants_raw$cuisine_descr)[cuis_ind] <- "Coffee_Tea"
+levels(restaurants_raw$cuisine_descr)
+
+# Relabel level "Latin (..." into "Latin"
+levels(restaurants_raw$cuisine_descr)[levels(restaurants_raw$cuisine_descr) == "Latin (Cuban, Dominican, Puerto Rican, South & Central American)"] <- "Latin"
+
+levels(restaurants_raw$cuisine_descr)
+```
+
+```{r}
+# Visualization
+restaurants_raw %>% 
+  group_by(cuisine_descr) %>% 
+  summarise(n = n_distinct(id)) %>% 
+  ggplot(aes(x = reorder(cuisine_descr, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  xlab("Cuisine") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+restaurants_raw %>% 
+  group_by(cuisine_descr) %>% 
+  summarise(n = n_distinct(id)) %>%
+  arrange(desc(n))
+```
+
+The most common categories of restaurants are "American" and "Chinese" followed by "Café", "Other", "Pizza" , "Italian", "Mexican", "Japanese" and "Latin".
+
+
+### Actions taken
+
+This variable takes on the following values:
+
+```{r}
+levels(as.factor(restaurants_raw$action))
+```
+
+We convert it into a factor and (re)name its levels for convenience:
+
+```{r}
+restaurants_raw$action <- as.factor(restaurants_raw$action)
+levels(restaurants_raw$action) <- c("Closed", "ReClosed", "ReOpened", "NoViol", "YesViol")
+summary(restaurants_raw$action)
+```
+
+
+
+```{r}
+(action_df <- restaurants_raw %>% 
+  group_by(action) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n)))
+
+action_df %>% 
+  ggplot(aes(reorder(action, -n), n)) +
+  geom_bar(stat = "identity") +
+  xlab("Action taken by DOHMH") 
+```
+
+In the vast majority of inspections violations were cited. Among these, a very small number lead to closures of restaurants. 
+
+
+
+### Violation types
+
+Next we will take a look at violation types.
+
+```{r}
+# Conversion into factor:
+restaurants_raw$violation_code <- as.factor(restaurants_raw$violation_code)
+summary(restaurants_raw$violation_code)
+```
+
+
+To do: create violation groups...
+
+
+Violation types overall and by boro:
+
+```{r}
+# Overall
+restaurants_raw %>% 
+  ggplot(aes(x = violation_code)) +
+  geom_bar() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+# By boro
+restaurants_raw %>% 
+  filter(!is.na(boro)) %>% 
+  ggplot(aes(x = violation_code)) +
+  geom_bar() +
+  facet_wrap(~ boro) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+Distribution of violation types seems to be consistent across boros (at first glance). Question: What are the most common types of violation?
+
+```{r}
+# Overall
+(viol_df <- restaurants_raw %>% 
+  group_by(violation_code) %>% 
+  summarise(number = n()) %>% 
+  mutate(rank = rank(desc(number))) %>% 
+  filter(rank <= 10) %>% 
+  arrange(rank))
+```
+
+10F (general violation pertaining to non-food contact surfaces) is the most common violation type.  followed by 08A (facility not vermin proof), 04L (Evidence of mice).
+
+
+
+### Critical flag
+
+Conversion into factor and renaming of levels:
+
+```{r}
+restaurants_raw$critical_flag <- as.factor(restaurants_raw$critical_flag)
+summary(as.factor(restaurants_raw$critical_flag))
+levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
+levels(restaurants_raw$critical_flag)
+
+```
+
+Recode levels:
+
+```{r}
+summary(as.factor(restaurants_raw$critical_flag))
+levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
+levels(restaurants_raw$critical_flag)
+```
+
+
+### Inspection date
+
+```{r}
+str(restaurants_raw$inspection_date)
+names(restaurants_raw)
+```
+
+```{r}
+# Load lubridate package
+library(lubridate)
+
+# Convert date columns of data:
+restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date) 
+```
+
+
+
+```{r}
+str(restaurants_raw$inspection_date)
+summary(restaurants_raw$inspection_date)
+```
+
+There are some observations with inspection_date "1900-01-01"!
+
+```{r}
+restaurants_raw %>% 
+  filter(inspection_date == "1900-01-01")
+```
+
+It seems that those are inspections that didn't take place. Therefore we will treat those values as NAs.
+
+```{r}
+# Replace these values in inspection_date with NA's:
+index_inspec_val1900 <- restaurants_raw$inspection_date == "1900-01-01"
+sum(index_inspec_val1900)
+
+restaurants_raw$inspection_date[index_inspec_val1900] <-  NA
+sum(is.na(restaurants_raw$inspection_date))
+```
+
+In the following we'll exclude those observations from the data set:
+
+```{r}
+# Exclusion of observations with no value of inspection date
+restaurants_raw <- restaurants_raw %>% 
+  filter(!is.na(inspection_date))
+
+nrow(restaurants_raw)
+```
+
+Write new cleaned up data set to file
+
+```{r}
+write.csv(restaurants_raw, "restaurants_clean.csv")
+```
+
+
+### Inspection type
+
+```{r}
+str(restaurants_raw$inspection_type)
+summary(as.factor(restaurants_raw$inspection_type))
+```
+
+Check for NAs:
+
+```{r}
+summary(restaurants_raw$inspection_type)
+sum(!is.na(restaurants_raw$inspection_type))
+```
+
+We'll create new variable inspection_type2 by collapsing the range into a smaller set of values.
+
+```{r}
+# Create new variable inspection_type2
+restaurants_raw$inspection_type2 <- restaurants_raw %>% 
+  .$inspection_type %>% 
+  str_split(., pattern = " / ") %>% 
+  map(. , 2) %>% 
+  unlist()
+  
+glimpse(restaurants_raw$inspection_type2)
+```
+
+
+
+
+
+
+### Number of inspections per restaurant
+
+Heavily skewed to the right. Question: in what respects do restaurants with a high number of visits differ from those with a low number?
+
+```{r}
+restaurants_raw %>% 
+  group_by(id) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x = n)) +
+  geom_density(fill = "orange") +
+  xlab("Number of inspections")
+```
+
+
+
+## Proportion of critical flag conditional on cuisine
+
+Critical flag by cuisine: 
+
+```{r}
+restaurants_raw %>% 
+  group_by(cuisine_descr) %>% 
+  summarise(n = n_distinct(id)) %>%
+  arrange(desc(n)) 
+```
+
+including only 7 most frequent cuisines...
+
+```{r}
+restaurants_raw %>% 
+  filter(cuisine_descr %in% c("American", "Chinese", 
+                              "Coffee_Tea", 
+                              "Other", "Pizza", 
+                              "Italian", "Mexican",
+                              "Japanese", 
+                              "Latin",
+                              "Bakery")) %>% 
+  ggplot(aes(x = cuisine_descr, fill = critical_flag)) +
+  geom_bar(position = "fill")
+```
+
+The proportion of critical flag does not vary with cuisine. In the category "Other" there is a large proportion of observations labeled "Not Applicable".
+
+
+# **Possible target features**  
+
+## Time passed between inspections
+
+As a first step, we will work with a random sample of size 50 from the population of restaurants in the data set. We will construct a data set which contains 
+
+```{r}
+# Data frame with target feature 'time between inspections'
+
+names(restaurants_raw)
+
+set.seed(1)
+sample_ids <- sample(unique(restaurants_raw$id), 50)
+sample_ids 
+
+library(lubridate)
+restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date)
+```
+
+Add unique identifier for row in data frame:
+
+```{r}
+restaurants_raw <- restaurants_raw %>% 
+  mutate(obs_id = 1:nrow(restaurants_raw))
+```
+
+
+
+```{r}
+restaurants_raw %>% 
+  select(id, inspection_date, score) %>% 
+  filter(id %in% sample_ids, !is.na(inspection_date)) %>% 
+  group_by(id, inspection_date) %>%
+  summarise() %>%
+  mutate(difference = inspection_date - lag(inspection_date)) %>% 
+  filter(!is.na(difference))
+```
+
+
+
+
+ 
+## Further Exploration 
+
+Question: 
+
+
+# **Possible predictors**
+
+We'll investigate further..
+
+```{r}
+restaurants_raw %>% 
+  filter(is.na(inspection_date), critical_flag == "Not_Applicable") %>% 
+  summarise(n = n())
+
+restaurants_raw %>% 
+  filter(is.na(inspection_date)) %>% 
+  summarise(n = n())
+
+```
+
+
+
+The observations with critical flag value "Not applicable" turned out to be exactly those observations that had an "inspection date" value of '1900-01-01' (that is, before cleaning the latter, see above), so we'll recode them to NA.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
