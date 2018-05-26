@@ -306,7 +306,7 @@ restaurants_raw %>%
 ```
 
 
-Violation_code overall and by boro:
+Let us look at the distribution of violation_code again, now using the information which group a given violation belongs to.
 
 ```{r}
 # Overall
