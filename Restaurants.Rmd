@@ -227,7 +227,7 @@ In the vast majority of inspections violations were cited. Among these, a very s
 
 ### Violation types
 
-Next we will take a look at violation types.
+Next we will take a look at violation types. 
 
 ```{r}
 # Conversion into factor:
@@ -235,42 +235,101 @@ restaurants_raw$violation_code <- as.factor(restaurants_raw$violation_code)
 summary(restaurants_raw$violation_code)
 ```
 
-
-To do: create violation groups...
-
-
-Violation types overall and by boro:
+What are ten most frequent violations?
 
 ```{r}
 # Overall
+restaurants_raw %>% 
+  group_by(violation_code) %>% 
+  summarise(number = n()) %>% 
+  mutate(rank = rank(desc(number))) %>% 
+  filter(rank <= 10) %>% 
+  arrange(rank)
+```
+10F (general violation pertaining to non-food contact surfaces) is the most common violation type.  followed by 08A (facility not vermin proof), 04L (Evidence of mice).
+
+Next, here is a quick plot of the distribution:
+
+```{r}
 restaurants_raw %>% 
   ggplot(aes(x = violation_code)) +
   geom_bar() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
+```
+
+
+To get a better sense of what is going on, we group the values in the range of violation_code into broader categories. To do this, we use information from the  provided by the authorities. Accordingly, violations are either scored or unscored. Among scored violations, we have to distinguish between critical and general violations. 
+
+
+```{r}
+violations <- restaurants_raw$violation_code
+
+patterns <- list(
+  violations %in% str_c("02", LETTERS[1:10]) ~ "crit_food_temperature",
+  violations %in% str_c("03", LETTERS[1:7]) ~ "crit_food_source",
+  violations %in% str_c("04", LETTERS[1:15]) ~ "crit_food_protection",
+  violations %in% str_c("05", LETTERS[1:9]) ~ "crit_facility_design",
+  violations %in% str_c("06", LETTERS[1:9]) ~ "crit_personal_hygiene",
+  violations == "07A" ~ "crit_other",
+  violations %in% str_c("08", LETTERS[1:3]) ~ "gen_vermin",
+  violations %in% str_c("09", LETTERS[1:3]) ~ "gen_food_source",
+  violations %in% str_c("10", LETTERS[1:10]) ~ "gen_facility_manage",
+  violations == "99B" ~ "gen_other",
+  !is.na(violations) ~ "not_scored"
+  )
+
+# New variable violation_group:
+restaurants_raw <- 
+  restaurants_raw %>% 
+  mutate(violation_group = case_when(!!!patterns))
+
+rm(patterns)
+rm(violations)
+```
+
+As a sanity check, verify that the number of NAs in violation_group and violation_code is the same:
+
+```{r}
+sum(is.na(restaurants_raw$violation_group)) == sum(is.na(restaurants_raw$violation_code))
+```
+
+Distribution of violation_group:
+
+```{r}
+restaurants_raw %>% 
+  group_by(violation_group) %>% 
+  filter(!is.na(violation_group)) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(reorder(violation_group, -n), n)) +
+  geom_bar(stat = "identity", fill = "blue")
+```
+
+
+Violation_code overall and by boro:
+
+```{r}
+# Overall
+restaurants_raw %>% 
+  filter(!is.na(violation_group)) %>% 
+  ggplot(aes(x = violation_code, fill = violation_group)) +
+  geom_bar() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
 # By boro
 restaurants_raw %>% 
-  filter(!is.na(boro)) %>% 
-  ggplot(aes(x = violation_code)) +
+  filter(!is.na(boro), !is.na(violation_group)) %>% 
+  ggplot(aes(x = violation_code, fill = violation_group)) +
   geom_bar() +
   facet_wrap(~ boro) +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
 ```
 
-Distribution of violation types seems to be consistent across boros (at first glance). Question: What are the most common types of violation?
 
-```{r}
-# Overall
-(viol_df <- restaurants_raw %>% 
-  group_by(violation_code) %>% 
-  summarise(number = n()) %>% 
-  mutate(rank = rank(desc(number))) %>% 
-  filter(rank <= 10) %>% 
-  arrange(rank))
-```
 
-10F (general violation pertaining to non-food contact surfaces) is the most common violation type.  followed by 08A (facility not vermin proof), 04L (Evidence of mice).
+
+
 
 
 
@@ -348,7 +407,7 @@ nrow(restaurants_raw)
 Write new cleaned up data set to file
 
 ```{r}
-write.csv(restaurants_raw, "restaurants_clean.csv")
+# write.csv(restaurants_raw, "restaurants_clean.csv")
 ```
 
 
@@ -464,6 +523,9 @@ restaurants_raw %>%
   summarise() %>%
   mutate(difference = inspection_date - lag(inspection_date)) %>% 
   filter(!is.na(difference))
+
+restaurants_raw %>% 
+  select(obs_id, id, inspection_date, score, grade)
 ```
 
 
