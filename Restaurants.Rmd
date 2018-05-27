@@ -462,7 +462,9 @@ restaurants_raw %>%
             prop_notYetGraded = round(mean(grade == "Not Yet Graded"), 3))
 ```
 
-The proportion of grades pending and not yet graded is higher for earlier inspections, which is not surprising. Next, we'll look at how the number of NAs for 'grade' relates to the number of NAs for 'inspection_type.' As a reminder, above we saw that there are 187702 missing values for 'grade' overall.
+The proportion of grades pending and not yet graded is higher for earlier inspections, which is not surprising. 
+
+Next, we'll look at how the number of NAs for 'grade' relates to the number of NAs for 'inspection_type.' As a reminder, above we saw that there are 187702 missing values for 'grade' overall.
 
 ```{r}
 restaurants_raw %>% 
@@ -491,13 +493,23 @@ restaurants_raw %>%
   
 ```
 
-Indeed, the vast majority of observations that belong to the 'not_scored' violation group has a missing score value (97 %). 
+There are 16530 observations that belong to the 'not_scored' violation group. Indeed, the vast majority of those, namely 16086, has a missing score value (97 %). These observations account for 82 % of all of the 19514 NA's for 'score':
 
 ```{r}
 round(16086/19514, 2)
 ```
 
-These observations account for 82 % of all NA's for score.
+What about the remaining 18 %, the 3428 other missing values for 'score'?
+
+```{r}
+restaurants_raw %>% 
+  select(violation_group, score) %>% 
+  filter(is.na(violation_group)) %>%  
+  summarise(n = n(), n_na_score = sum(is.na(score)), round(n_na_score/n, 2))
+    
+```
+
+So the rest of the NA's for score are associated with NA's on 'violation_group'. It remains to investigate these NA's further before any modeling..
 
 
 Here is a plot of the distribution of 'score' of all non-NA observations:
