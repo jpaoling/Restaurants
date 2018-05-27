@@ -121,6 +121,19 @@ nrow(restaurants_raw %>%
 
 It seems that each id is associated with a unique restaurant name, as one would expect. 
 
+### Number of inspections per restaurant
+
+Heavily skewed to the right. 
+
+```{r}
+restaurants_raw %>% 
+  group_by(id) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x = n)) +
+  geom_density(fill = "orange") +
+  xlab("Number of inspections")
+```
+
 
 ### Boros
 
@@ -146,6 +159,59 @@ boros %>%
   geom_bar(stat = "identity", color = "blue") +
   xlab("boro")
 ```
+
+### Inspection date
+
+
+```{r}
+# Load lubridate package
+library(lubridate)
+
+# Convert date columns of data:
+restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date) 
+```
+
+
+
+```{r}
+str(restaurants_raw$inspection_date)
+summary(restaurants_raw$inspection_date)
+```
+
+There are some observations with inspection_date "1900-01-01"!
+
+```{r}
+restaurants_raw %>% 
+  filter(inspection_date == "1900-01-01")
+```
+
+It seems that those are inspections that didn't take place. Therefore we will treat those values as NAs.
+
+```{r}
+# Replace these values in inspection_date with NA's:
+index_inspec_val1900 <- restaurants_raw$inspection_date == "1900-01-01"
+sum(index_inspec_val1900)
+
+restaurants_raw$inspection_date[index_inspec_val1900] <-  NA
+sum(is.na(restaurants_raw$inspection_date))
+```
+
+In the following we'll exclude those observations from the data set:
+
+```{r}
+# Exclusion of observations with no value of inspection date
+restaurants_raw <- restaurants_raw %>% 
+  filter(!is.na(inspection_date))
+
+nrow(restaurants_raw)
+```
+
+Write new cleaned up data set to file
+
+```{r}
+# write.csv(restaurants_raw, "restaurants_clean.csv")
+```
+
 
 
 ### Cuisine description
@@ -221,7 +287,8 @@ action_df %>%
   xlab("Action taken by DOHMH") 
 ```
 
-In the vast majority of inspections violations were cited. Among these, a very small number lead to closures of restaurants. 
+In the vast majority of inspections violations were cited. Among these, a very small number leads to restaurant closures. 
+
 
 
 
@@ -333,82 +400,7 @@ restaurants_raw %>%
 
 
 
-### Critical flag
 
-Conversion into factor and renaming of levels:
-
-```{r}
-restaurants_raw$critical_flag <- as.factor(restaurants_raw$critical_flag)
-summary(as.factor(restaurants_raw$critical_flag))
-levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
-levels(restaurants_raw$critical_flag)
-
-```
-
-Recode levels:
-
-```{r}
-summary(as.factor(restaurants_raw$critical_flag))
-levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
-levels(restaurants_raw$critical_flag)
-```
-
-
-### Inspection date
-
-```{r}
-str(restaurants_raw$inspection_date)
-names(restaurants_raw)
-```
-
-```{r}
-# Load lubridate package
-library(lubridate)
-
-# Convert date columns of data:
-restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date) 
-```
-
-
-
-```{r}
-str(restaurants_raw$inspection_date)
-summary(restaurants_raw$inspection_date)
-```
-
-There are some observations with inspection_date "1900-01-01"!
-
-```{r}
-restaurants_raw %>% 
-  filter(inspection_date == "1900-01-01")
-```
-
-It seems that those are inspections that didn't take place. Therefore we will treat those values as NAs.
-
-```{r}
-# Replace these values in inspection_date with NA's:
-index_inspec_val1900 <- restaurants_raw$inspection_date == "1900-01-01"
-sum(index_inspec_val1900)
-
-restaurants_raw$inspection_date[index_inspec_val1900] <-  NA
-sum(is.na(restaurants_raw$inspection_date))
-```
-
-In the following we'll exclude those observations from the data set:
-
-```{r}
-# Exclusion of observations with no value of inspection date
-restaurants_raw <- restaurants_raw %>% 
-  filter(!is.na(inspection_date))
-
-nrow(restaurants_raw)
-```
-
-Write new cleaned up data set to file
-
-```{r}
-# write.csv(restaurants_raw, "restaurants_clean.csv")
-```
 
 
 ### Inspection type
@@ -434,27 +426,114 @@ restaurants_raw$inspection_type2 <- restaurants_raw %>%
   str_split(., pattern = " / ") %>% 
   map(. , 2) %>% 
   unlist()
-  
-glimpse(restaurants_raw$inspection_type2)
+
+restaurants_raw %>% 
+  select(inspection_type2) %>% 
+  group_by(inspection_type2) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n))
+
 ```
 
 
 
+### Grade and Score
 
-
-
-### Number of inspections per restaurant
-
-Heavily skewed to the right. Question: in what respects do restaurants with a high number of visits differ from those with a low number?
+The grading system works like this: ... 
 
 ```{r}
 restaurants_raw %>% 
-  group_by(id) %>% 
-  summarize(n = n()) %>% 
-  ggplot(aes(x = n)) +
-  geom_density(fill = "orange") +
-  xlab("Number of inspections")
+  group_by(grade) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n))
+         
 ```
+
+
+Relationship between grade and inspection date:
+
+```{r}
+restaurants_raw %>% 
+  select(grade, inspection_date) %>% 
+  filter(!is.na(grade)) %>%
+  separate(inspection_date, into = c("year", "month", "day")) %>% 
+  group_by(year) %>% 
+  summarise(prop_pending = round(mean(grade %in% c("P","Z")), 3),
+            prop_notYetGraded = round(mean(grade == "Not Yet Graded"), 3))
+```
+
+The proportion of grades pending and not yet graded is higher for earlier inspections, which is not surprising. Next, we'll look at how the number of NAs for 'grade' relates to the number of NAs for 'inspection_type.' As a reminder, above we saw that there are 187702 missing values for 'grade' overall.
+
+```{r}
+restaurants_raw %>% 
+  select(inspection_type2, score, grade) %>% 
+  filter(inspection_type2 == "Initial Inspection", score > 14) %>%
+  group_by(grade) %>% 
+  summarise(n = n())
+  
+```
+
+So about 73 % of the missing values are due to a score of 14 or higher. Furthermore, out of the 1915 observations with value 'Not yet graded', 1548 are the result of a high score (above 13) in the initial inspection.
+
+Let us turn to 'score':
+
+```{r}
+summary(restaurants_raw$score)
+```
+
+There are 19514 NA's. We know that there are 16530 observations that refer to violations that are not scored. These observations are expected to have NA for 'score':
+
+```{r}
+restaurants_raw %>% 
+  select(violation_group, score) %>% 
+  filter(violation_group == "not_scored") %>% 
+  summarise(n = n(), n_na_score = sum(is.na(score)), round(n_na_score/n, 2))
+  
+```
+
+Indeed, the vast majority of observations that belong to the 'not_scored' violation group has a missing score value (97 %). 
+
+```{r}
+round(16086/19514, 2)
+```
+
+These observations account for 82 % of all NA's for score.
+
+
+Here is a plot of the distribution of 'score' of all non-NA observations:
+
+```{r}
+restaurants_raw %>% 
+  filter(!is.na(score)) %>% 
+  ggplot(aes(x = score)) +
+  geom_histogram()
+```
+
+
+
+
+### Critical flag
+
+Conversion into factor and renaming of levels:
+
+```{r}
+restaurants_raw$critical_flag <- as.factor(restaurants_raw$critical_flag)
+summary(as.factor(restaurants_raw$critical_flag))
+levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
+levels(restaurants_raw$critical_flag)
+
+```
+
+Recode levels:
+
+```{r}
+summary(as.factor(restaurants_raw$critical_flag))
+levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
+levels(restaurants_raw$critical_flag)
+```
+
+
+
 
 
 
@@ -485,6 +564,7 @@ restaurants_raw %>%
 ```
 
 The proportion of critical flag does not vary with cuisine. In the category "Other" there is a large proportion of observations labeled "Not Applicable".
+
 
 
 # **Possible target features**  
