@@ -373,7 +373,7 @@ restaurants_raw %>%
 ```
 
 
-Let us look at the distribution of violation_code again, now using the information which group a given violation belongs to.
+Let us look at the distribution of violation_code again, now using the information which group a given violation belongs:
 
 ```{r}
 # Overall
@@ -383,6 +383,12 @@ restaurants_raw %>%
   geom_bar() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
+
+```
+
+... and by boro:
+
+```{r}
 # By boro
 restaurants_raw %>% 
   filter(!is.na(boro), !is.na(violation_group)) %>% 
@@ -392,9 +398,6 @@ restaurants_raw %>%
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
 ```
-
-
-
 
 
 
@@ -420,26 +423,31 @@ sum(!is.na(restaurants_raw$inspection_type))
 We'll create new variable inspection_type2 by collapsing the range into a smaller set of values.
 
 ```{r}
-# Create new variable inspection_type2
-restaurants_raw$inspection_type2 <- restaurants_raw %>% 
-  .$inspection_type %>% 
-  str_split(., pattern = " / ") %>% 
-  map(. , 2) %>% 
-  unlist()
+restaurants_raw$inspection_type2 <-  restaurants_raw %>% 
+  select(inspection_type) %>% 
+  separate(inspection_type, into = c("before_slash", "after_slash"), sep = " / ") %>% 
+  transmute(after_slash = str_replace_all(after_slash, fixed(" "), fixed(""))) %>% 
+  transmute(inspection_type2 = str_replace_all(after_slash, fixed("-i"), fixed("I"))) %>% 
+  .$inspection_type2
 
-restaurants_raw %>% 
-  select(inspection_type2) %>% 
-  group_by(inspection_type2) %>% 
-  summarise(n = n()) %>% 
-  arrange(desc(n))
-
+unique(restaurants_raw$inspection_type2)
 ```
 
+
+Let us construct dummy variables for the categories above which will come in handy, once we get to the task of prediction:
+
+```{r}
+for(level in unique(restaurants_raw$inspection_type2)){
+  restaurants_raw[paste("dummy", level, sep = "_")] <- 
+    ifelse(restaurants_raw$inspection_type2 == level, 1, 0)
+}
+names(restaurants_raw)
+```
 
 
 ### Grade and Score
 
-The grading system works like this: ... 
+Grades:
 
 ```{r}
 restaurants_raw %>% 
@@ -499,29 +507,93 @@ There are 16530 observations that belong to the 'not_scored' violation group. In
 round(16086/19514, 2)
 ```
 
+We will recode their score to 0:
+
+```{r}
+# Recode score NA's for which violation group is 'not_scored' to 0:
+restaurants_raw$score[restaurants_raw$violation_group == "not_scored"] <- 0
+# Remaining NA's:
+sum(is.na(restaurants_raw$score))
+```
+
+
 What about the remaining 18 %, the 3428 other missing values for 'score'?
 
 ```{r}
 restaurants_raw %>% 
   select(violation_group, score) %>% 
   filter(is.na(violation_group)) %>%  
-  summarise(n = n(), n_na_score = sum(is.na(score)), round(n_na_score/n, 2))
+  summarise(n = n(), n_na_score = sum(is.na(score)))
     
 ```
 
-So the rest of the NA's for score are associated with NA's on 'violation_group'. It remains to investigate these NA's further before any modeling..
+Hence, the rest of the NA's for score are associated with NA's on 'violation_group'. 
+
+So let us turn to the NA's for the variable 'violation_group'. One cause for an NA here may be that on a given inspection, there was no violation at all.
+
+```{r}
+# Check for NA's for violation group among observations where there was no violation on the respective inspection:
+restaurants_raw %>% filter(action == "NoViol") %>% 
+  summarise(violNAs_among_noViolation = sum(is.na(violation_group)), 
+            scoreNAs_among_noViolation = sum(is.na(score)))
+```
+
+We see that almost all of the remaining NA's for score are due to the absence of violations on the respective inspection. We will recode these scores accordingly, by assigning them the value 0 as well:
+
+```{r}
+restaurants_raw$score[restaurants_raw$action == "NoViol" & is.na(restaurants_raw$score)] <- 0
+sum(is.na(restaurants_raw$score))
+```
+
+So now, there are only 2 missing values for score left. We'll assign them the median value of the non-Na scores:
+
+```{r}
+restaurants_raw$score[is.na(restaurants_raw$score)] <-
+  median(restaurants_raw$score[!is.na(restaurants_raw$score)])
+sum(is.na(restaurants_raw$score))
+```
+
 
 
 Here is a plot of the distribution of 'score' of all non-NA observations:
 
 ```{r}
 restaurants_raw %>% 
-  filter(!is.na(score)) %>% 
   ggplot(aes(x = score)) +
-  geom_histogram()
+  geom_histogram(bins = 25)
+
+restaurants_raw %>% 
+  ggplot(aes(x = 1, y = score)) +
+  geom_boxplot()
+```
+
+It is also sensible to change the NA's for violation group where there was no violation. Let us also see how many NA's for violation group there are overall:
+
+```{r}
+restaurants_raw %>% 
+  summarise(NA_overall = sum(is.na(violation_group)), 
+            NA_noViol = sum(is.na(violation_group) & action == "NoViol"))
+```
+
+We will the name the new category "None":
+
+```{r}
+# 
+temp <- restaurants_raw$action == "NoViol" & is.na(restaurants_raw$violation_group)
+restaurants_raw$violation_group[temp] <- "None"
+unique(restaurants_raw$violation_group)
 ```
 
 
+For later use, we construct dummy variables for the different violation groups:
+
+```{r}
+for(level in unique(restaurants_raw$violation_group)){
+  restaurants_raw[paste("dummy", level, sep = "_")] <- 
+    ifelse(restaurants_raw$violation_group == level, 1, 0)
+}
+names(restaurants_raw)
+```
 
 
 ### Critical flag
@@ -579,77 +651,125 @@ The proportion of critical flag does not vary with cuisine. In the category "Oth
 
 
 
-# **Possible target features**  
+# **Prediction of time between inspections**  
 
 ## Time passed between inspections
 
-As a first step, we will work with a random sample of size 50 from the population of restaurants in the data set. We will construct a data set which contains 
-
 ```{r}
-# Data frame with target feature 'time between inspections'
-
-names(restaurants_raw)
-
-set.seed(1)
-sample_ids <- sample(unique(restaurants_raw$id), 50)
-sample_ids 
-
 library(lubridate)
-restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date)
+restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date) 
 ```
 
-Add unique identifier for row in data frame:
+As a first step, we will divide our data set into a training and a test data set, putting 2/3 of the restaurants into the training set.
 
 ```{r}
-restaurants_raw <- restaurants_raw %>% 
-  mutate(obs_id = 1:nrow(restaurants_raw))
+set.seed(1)
+train_ids <- sample(unique(restaurants_raw$id), 0.6*length(unique(restaurants_raw$id)))
+test_ids <- setdiff(unique(restaurants_raw$id), train_ids) 
 ```
 
+Then we construct the training data set:
 
+```{r}
+# Training data
+train_df <- restaurants_raw %>% 
+  filter(id %in% train_ids)
+```
+
+The remaining restaurants are saved into a file and stored away. Furthermore we will remove our initial data set from the workspace:
 
 ```{r}
 restaurants_raw %>% 
+  filter(id %in% test_ids) %>% 
+write.csv("test_restaurants.csv")
+rm(restaurants_raw)
+```
+
+
+Next, We will construct a table containing the difference between inspections and the total score for a given inspection:
+
+```{r}
+# Data frame containing restaurant id, inspection date, total score and time between inspections
+train_diff_score <- train_df %>% 
   select(id, inspection_date, score) %>% 
-  filter(id %in% sample_ids, !is.na(inspection_date)) %>% 
   group_by(id, inspection_date) %>%
-  summarise() %>%
-  mutate(difference = inspection_date - lag(inspection_date)) %>% 
-  filter(!is.na(difference))
+  arrange(inspection_date) %>%
+  summarise(score_total = sum(score, na.rm = TRUE)) %>% 
+  mutate(difference = lead(inspection_date) - inspection_date) %>% 
+  ungroup()
 
-restaurants_raw %>% 
-  select(obs_id, id, inspection_date, score, grade)
+train_diff_score %>% 
+  filter(!is.na(difference)) %>% 
+  ggplot(aes(x = as.numeric(difference))) +
+  geom_histogram(bins = 30) +
+  xlab("Number of days between inspections")
 ```
 
-
-
-
- 
-## Further Exploration 
-
-Question: 
-
-
-# **Possible predictors**
-
-We'll investigate further..
+Next, we construct a data frame containing id, inspection date and the dummy variables for inspection type and violation group: 
 
 ```{r}
-restaurants_raw %>% 
-  filter(is.na(inspection_date), critical_flag == "Not_Applicable") %>% 
-  summarise(n = n())
-
-restaurants_raw %>% 
-  filter(is.na(inspection_date)) %>% 
-  summarise(n = n())
-
+# We exclude the dummy variable 'dummy_NA' which signifies an unknown violation group for a recorded violation on a given inspection for a given restaurant
+train_inspec_viol <- train_df %>% 
+  select(id, inspection_date, starts_with("dummy"), -dummy_NA)
+names(train_inspec_viol)
 ```
 
+Now, we will transform the data frame 'train_violations' so that each row corresponds to the inspection on the given date and at the given restaurant. For each row and each violation group the corresonding entry in the table signifies whether the respective violation group was recorded. 
 
+```{r}
+# Tranformation of sample_violations:
+train_inspec_viol <- train_inspec_viol %>% 
+  group_by(id, inspection_date) %>% 
+  summarise_at(vars(starts_with("dummy")), ~ ifelse(sum(.) != 0, 1, 0)) %>% 
+  arrange(id, inspection_date) %>% 
+  ungroup()
+train_inspec_viol
+```
 
-The observations with critical flag value "Not applicable" turned out to be exactly those observations that had an "inspection date" value of '1900-01-01' (that is, before cleaning the latter, see above), so we'll recode them to NA.
+We'll join the table sample_violations with the table 'train_diff_score', created earlier, for convenience reproduced below:
 
+```{r}
+train_diff_score
+```
 
+They have a shared key given by the pair (id, inspection_date). Hence we will join those tables to obtain the following data frame:
 
+```{r}
+train_df_complete <- train_diff_score %>% 
+  inner_join(train_inspec_viol, by = c("id", "inspection_date")) %>% 
+  filter(!is.na(difference)) 
+train_df_complete
+```
+
+Note that we have omitted the rows with an NA for difference. Since inspection date had no NA's, the NA's for difference are exactly the ones resulting from the manner in which the variable was created. More precisely, for each restaurant, the last and only the last inspection is NA. Because there is no subsequent inspection, there is no loss of relevant information when removing that observation. 
+
+# Baseline Model
+
+First we load the packages 'rpart' and 'rpart.plot'
+
+```{r echo=FALSE}
+# install.packages("rpart")
+# install.packages("rpart.plot")
+library(rpart)
+library(rpart.plot)
+```
+ 
+The first model will try to reproduce the static rules governing the inspection procedure. We will try model the time between inspections using 'score' and the dummy variables for inspection type:
+
+```{r}
+train_df_1 <- train_df_complete %>% 
+  select(difference, score_total, ends_with("Inspection"))
+train_df_1
+```
+
+```{r}
+m1 <- rpart(difference ~ ., data = train_df_1, method = "anova")
+m1
+```
+
+```{r}
+rpart.plot(m1, type = 3, digits = 3, fallen.leaves = TRUE)
+```
 
 
 
