@@ -679,30 +679,53 @@ train_df <- restaurants_raw %>%
 The remaining restaurants are saved into a file and stored away. Furthermore we will remove our initial data set from the workspace:
 
 ```{r}
-restaurants_raw %>% 
-  filter(id %in% test_ids) %>% 
-write.csv("test_restaurants.csv")
-rm(restaurants_raw)
+test_df <- restaurants_raw %>% 
+  filter(id %in% test_ids) 
 ```
 
 
-Next, We will construct a table containing the difference between inspections and the total score for a given inspection:
+Next, We will construct a table containing the difference between inspections and the total score for a given inspection. Also, we also have to make sure that the distributions of the target in training and test data are similar.   
 
 ```{r}
-# Data frame containing restaurant id, inspection date, total score and time between inspections
-train_diff_score <- train_df %>% 
+make_diff_df <- function(x) {
+  x %>% 
   select(id, inspection_date, score) %>% 
   group_by(id, inspection_date) %>%
   arrange(inspection_date) %>%
   summarise(score_total = sum(score, na.rm = TRUE)) %>% 
   mutate(difference = lead(inspection_date) - inspection_date) %>% 
-  ungroup()
+  ungroup() 
+}
 
-train_diff_score %>% 
-  filter(!is.na(difference)) %>% 
-  ggplot(aes(x = as.numeric(difference))) +
-  geom_histogram(bins = 30) +
-  xlab("Number of days between inspections")
+plot_diff <- function(x) {
+  x %>% 
+    filter(!is.na(difference)) %>% 
+    ggplot(aes(x = as.numeric(difference))) +
+    geom_histogram(bins = 30) +
+    xlab("Number of days between inspections")
+}
+
+library(gridExtra)
+
+
+grid.arrange(train_df %>% make_diff_df() %>% plot_diff(),
+             test_df %>% make_diff_df() %>%  plot_diff())
+```
+
+The distribution of the target seems reasonably similar across training and test data. So now, we remove the original data set and the test data from the workspace and save the latter to a file
+
+```{r}
+write.csv(test_df, "test_restaurants.csv")
+rm(restaurants_raw)
+rm(test_df)
+```
+
+From now on we will be working with training data exclusively.
+
+```{r}
+# Data frame containing restaurant id, inspection date, total score and time between inspections
+train_diff_score <- train_df %>% make_diff_df()
+train_diff_score
 ```
 
 Next, we construct a data frame containing id, inspection date and the dummy variables for inspection type and violation group: 
