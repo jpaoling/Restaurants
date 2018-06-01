@@ -743,7 +743,7 @@ Now, we will transform the data frame 'train_violations' so that each row corres
 # Tranformation of sample_violations:
 train_inspec_viol <- train_inspec_viol %>% 
   group_by(id, inspection_date) %>% 
-  summarise_at(vars(starts_with("dummy")), ~ ifelse(sum(.) != 0, 1, 0)) %>% 
+  summarise_at(vars(starts_with("dummy")), ~ ifelse(sum(.) > 0, 1, 0)) %>% 
   arrange(id, inspection_date) %>% 
   ungroup()
 train_inspec_viol
@@ -759,7 +759,7 @@ They have a shared key given by the pair (id, inspection_date). Hence we will jo
 
 ```{r}
 train_df_complete <- train_diff_score %>% 
-  inner_join(train_inspec_viol, by = c("id", "inspection_date")) %>% 
+  left_join(train_inspec_viol, by = c("id", "inspection_date")) %>% 
   filter(!is.na(difference)) 
 train_df_complete
 ```
