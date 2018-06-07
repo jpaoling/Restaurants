@@ -434,13 +434,21 @@ unique(restaurants_raw$inspection_type2)
 ```
 
 
-Let us construct dummy variables for the categories above which will come in handy, once we get to the task of prediction:
+Let us construct dummy variables for the categories above which will come in handy, once we get to the task of prediction, we'll use 'LimitedInspection' as base category:
 
 ```{r}
 for(level in unique(restaurants_raw$inspection_type2)){
-  restaurants_raw[paste("dummy", level, sep = "_")] <- 
-    ifelse(restaurants_raw$inspection_type2 == level, 1, 0)
+  
+  if (level == "LimitedInspection") {
+    next
+  } else {
+    restaurants_raw[paste("dummy", level, sep = "_")] <- 
+      ifelse(restaurants_raw$inspection_type2 == level &
+             restaurants_raw$inspection_type2 != "SecondComplianceInspection", 
+             1, 0)
+  }
 }
+
 names(restaurants_raw)
 ```
 
@@ -477,13 +485,33 @@ Next, we'll look at how the number of NAs for 'grade' relates to the number of N
 ```{r}
 restaurants_raw %>% 
   select(inspection_type2, score, grade) %>% 
-  filter(inspection_type2 == "Initial Inspection", score > 14) %>%
+  filter(inspection_type2 == "InitialInspection", score > 14) %>%
   group_by(grade) %>% 
   summarise(n = n())
   
 ```
 
 So about 73 % of the missing values are due to a score of 14 or higher. Furthermore, out of the 1915 observations with value 'Not yet graded', 1548 are the result of a high score (above 13) in the initial inspection.
+
+Let us, for later purposes, create a dummy variable for the different levels of 'grade', where we choose 'NA' to be our base level:
+
+```{r}
+temp_index <- restaurants_raw$grade == "Not Yet Graded"
+restaurants_raw$grade[temp_index] <- "NotYetGraded"
+
+for(level in unique(restaurants_raw$grade)){
+  
+  if (is.na(level)) {
+    next
+  } else {
+    restaurants_raw[paste("dummy", level, sep = "_")] <- 
+      ifelse(restaurants_raw$grade == level, 1, 0)
+  }
+}
+
+names(restaurants_raw)
+```
+
 
 Let us turn to 'score':
 
@@ -585,12 +613,18 @@ unique(restaurants_raw$violation_group)
 ```
 
 
-For later use, we construct dummy variables for the different violation groups:
+For later use, we construct dummy variables for the different violation groups, with 'NA' as base group:
 
 ```{r}
 for(level in unique(restaurants_raw$violation_group)){
-  restaurants_raw[paste("dummy", level, sep = "_")] <- 
+  if (is.na(level)) {
+    next
+  } else {
+    restaurants_raw[paste("dummy", level, sep = "_")] <- 
     ifelse(restaurants_raw$violation_group == level, 1, 0)
+  }
+  
+  
 }
 names(restaurants_raw)
 ```
@@ -668,26 +702,48 @@ train_ids <- sample(unique(restaurants_raw$id), 0.6*length(unique(restaurants_ra
 test_ids <- setdiff(unique(restaurants_raw$id), train_ids) 
 ```
 
-Then we construct the training data set:
+Next, let us see if the distributions of the target feature in training and test data are similar:
+
+```{r}
+restaurants_raw %>% 
+  select(id, inspection_date) %>% 
+  group_by(id, inspection_date) %>% 
+  arrange(inspection_date) %>% 
+  summarise() %>% 
+  mutate(difference = lead(inspection_date) - inspection_date) %>%
+  filter(!is.na(difference)) %>% 
+  mutate(group = ifelse(id %in% train_ids, "Training", "Test")) %>% 
+  ggplot(aes(as.numeric(difference))) +
+  geom_histogram(bins = 30) +
+  xlab("Days until next inspection") +
+  facet_grid(. ~ group) 
+  
+```
+
+The distribution of the target seems reasonably similar across training and test data. Now, we'll split the data set into training and test data:
+
 
 ```{r}
 # Training data
 train_df <- restaurants_raw %>% 
   filter(id %in% train_ids)
-```
-
-The remaining restaurants are saved into a file and stored away. Furthermore we will remove our initial data set from the workspace:
-
-```{r}
+# Test data
 test_df <- restaurants_raw %>% 
   filter(id %in% test_ids) 
 ```
 
-
-Next, We will construct a table containing the difference between inspections and the total score for a given inspection. Also, we also have to make sure that the distributions of the target in training and test data are similar.   
+So now, we remove the original data set and the test data from the workspace and save the latter to a file:
 
 ```{r}
-make_diff_df <- function(x) {
+write.csv(test_df, "test_restaurants.csv")
+rm(restaurants_raw)
+rm(test_df)
+```
+
+Next, We will construct a table containing the difference between inspections and the total score for a given inspection. Also, we have to make sure that the distributions of the target in training and test data are similar.   
+
+```{r}
+make_diff_score_df <- function(x) {
   x %>% 
   select(id, inspection_date, score) %>% 
   group_by(id, inspection_date) %>%
@@ -696,60 +752,39 @@ make_diff_df <- function(x) {
   mutate(difference = lead(inspection_date) - inspection_date) %>% 
   ungroup() 
 }
-
-plot_diff <- function(x) {
-  x %>% 
-    filter(!is.na(difference)) %>% 
-    ggplot(aes(x = as.numeric(difference))) +
-    geom_histogram(bins = 30) +
-    xlab("Number of days between inspections")
-}
-
-library(gridExtra)
-
-
-grid.arrange(train_df %>% make_diff_df() %>% plot_diff(),
-             test_df %>% make_diff_df() %>%  plot_diff())
 ```
 
-The distribution of the target seems reasonably similar across training and test data. So now, we remove the original data set and the test data from the workspace and save the latter to a file
 
-```{r}
-write.csv(test_df, "test_restaurants.csv")
-rm(restaurants_raw)
-rm(test_df)
-```
 
 From now on we will be working with training data exclusively.
 
 ```{r}
 # Data frame containing restaurant id, inspection date, total score and time between inspections
-train_diff_score <- train_df %>% make_diff_df()
+train_diff_score <- train_df %>% make_diff_score_df()
 train_diff_score
 ```
 
-Next, we construct a data frame containing id, inspection date and the dummy variables for inspection type and violation group: 
+Next, we construct a data frame containing id, inspection date and the dummy variables for inspection type, violation group and grade: 
 
 ```{r}
 # We exclude the dummy variable 'dummy_NA' which signifies an unknown violation group for a recorded violation on a given inspection for a given restaurant
-train_inspec_viol <- train_df %>% 
-  select(id, inspection_date, starts_with("dummy"), -dummy_NA)
-names(train_inspec_viol)
+(train_inspec_grade_viol <- train_df %>% 
+  select(id, inspection_date, starts_with("dummy")) %>% 
+  arrange(id, inspection_date))
 ```
 
-Now, we will transform the data frame 'train_violations' so that each row corresponds to the inspection on the given date and at the given restaurant. For each row and each violation group the corresonding entry in the table signifies whether the respective violation group was recorded. 
+Now, we will transform the data frame 'train_inspec_grade_viol' so that each row corresponds to an inspection on a given date and at a given restaurant: 
 
 ```{r}
 # Tranformation of sample_violations:
-train_inspec_viol <- train_inspec_viol %>% 
+(train_inspec_grade_viol <- train_inspec_grade_viol %>% 
   group_by(id, inspection_date) %>% 
-  summarise_at(vars(starts_with("dummy")), ~ ifelse(sum(.) > 0, 1, 0)) %>% 
+  summarise_at(vars(starts_with("dummy")), ~ ifelse(sum(.) != 0, 1, 0)) %>% 
   arrange(id, inspection_date) %>% 
-  ungroup()
-train_inspec_viol
+  ungroup())
 ```
 
-We'll join the table sample_violations with the table 'train_diff_score', created earlier, for convenience reproduced below:
+We'll join the table 'train_inspec_grade_viol' with the table 'train_diff_score', created earlier, for convenience reproduced below:
 
 ```{r}
 train_diff_score
@@ -758,10 +793,9 @@ train_diff_score
 They have a shared key given by the pair (id, inspection_date). Hence we will join those tables to obtain the following data frame:
 
 ```{r}
-train_df_complete <- train_diff_score %>% 
-  left_join(train_inspec_viol, by = c("id", "inspection_date")) %>% 
-  filter(!is.na(difference)) 
-train_df_complete
+(train_df_complete <- train_diff_score %>% 
+  inner_join(train_inspec_grade_viol, by = c("id", "inspection_date")) %>% 
+  filter(!is.na(difference))) 
 ```
 
 Note that we have omitted the rows with an NA for difference. Since inspection date had no NA's, the NA's for difference are exactly the ones resulting from the manner in which the variable was created. More precisely, for each restaurant, the last and only the last inspection is NA. Because there is no subsequent inspection, there is no loss of relevant information when removing that observation. 
@@ -777,17 +811,10 @@ library(rpart)
 library(rpart.plot)
 ```
  
-The first model will try to reproduce the static rules governing the inspection procedure. We will try model the time between inspections using 'score' and the dummy variables for inspection type:
+In the first model we include the total score on a given inspection, and all dummy variables for inspection type, grade and violation groups, respectively.
 
 ```{r}
-train_df_1 <- train_df_complete %>% 
-  select(difference, score_total, ends_with("Inspection"))
-train_df_1
-```
-
-```{r}
-m1 <- rpart(difference ~ ., data = train_df_1, method = "anova")
-m1
+(m1 <- rpart(difference ~ ., data = train_df_complete, method = "anova"))
 ```
 
 ```{r}
