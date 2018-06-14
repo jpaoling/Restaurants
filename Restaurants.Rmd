@@ -161,7 +161,7 @@ action_df %>%
 In the vast majority of inspections violations were cited. Among these, a very small number leads to restaurant closures. 
 
 
-### 2.7 Violation types
+### 2.4 Violation types
 
 Next, we will consider the different types of violations recorded.
 
@@ -238,7 +238,23 @@ restaurants_raw %>%
         axis.ticks.x = element_blank())
 ```
 
-### 2.8 Inspection types
+For later use, we construct dummy variables for the different violation groups, with 'crit_other' as base group:
+
+```{r}
+for(level in unique(restaurants_raw$violation_group)){
+  if (is.na(level) | level == "crit_other") {
+    next
+  } else {
+    restaurants_raw[paste("viol", level, sep = "_")] <- 
+    ifelse(restaurants_raw$violation_group == level, 1, 0)
+  }
+}
+names(restaurants_raw)
+```
+
+
+
+### 2.5 Inspection types
 
 The variable inspection type takes on 34 distinct values:
 
@@ -298,7 +314,7 @@ names(restaurants_raw)
 ```
 
 
-### 2.9 Grade
+### 2.6 Grade
 
 ```{r}
 restaurants_raw %>% 
@@ -373,9 +389,8 @@ for(level in unique(restaurants_raw$grade)){
   if (is.na(level) | level == "Z") {
     next
   } else {
-    restaurants_raw[paste("dummy", level, sep = "_")] <- 
-      ifelse(!is.na(restaurants_raw$grade) & 
-               restaurants_raw$grade == level, 1, 0)
+    restaurants_raw[paste("grade", level, sep = "_")] <- 
+      ifelse(restaurants_raw$grade == level, 1, 0)
   }
   
 }
@@ -384,7 +399,7 @@ rm(level)
 names(restaurants_raw)
 ```
 
-### 2.10 Score
+### 2.7 Score
 
 Let us turn to 'score'.
 
@@ -494,23 +509,58 @@ rm(test_df)
 ```
 
 
-### 3.2
+### 3.2 Features and target
 
 ```{r}
-train_df %>% 
-  select(id, inspection_date, inspection_type2, score, grade,
-         dummy_A, dummy_B, dummy_C, dummy_NotYetGraded, dummy_P, dummy_Z) %>% 
+# Create data set with features for inspection type, score, grade and number of violations:
+train_df_feat_1 <- train_df %>% 
+  select(id, inspection_date, dummy_InitialInspection, score, 
+         matches("grade_"), -grade_date, matches("viol_")) %>% 
   group_by(id, inspection_date) %>% 
   arrange(id, inspection_date) %>% 
-  summarise_at(c("grade", "score", "inspection_type2", 
-                 "dummy_A", "dummy_B", "dummy_C",
-                 "dummy_NotYetGraded", "dummy_P", "dummy_Z"), 
+  summarise_at(vars(starts_with("grade"), c("dummy_InitialInspection", "score")), 
                .funs = list(first)) %>% 
-  mutate(days_until_next = lead(inspection_date) - inspection_date)
+  mutate(days_until_next = lead(inspection_date) - inspection_date) %>% 
+  ungroup() %>% 
+  left_join(
+    train_df %>% 
+      select(id, inspection_date, starts_with("viol_")) %>% 
+      group_by(id, inspection_date) %>% 
+      arrange(id, inspection_date) %>% 
+      summarise_at(vars(starts_with("viol")), ~ sum(.)) %>% 
+      ungroup(),
+    by = c("id", "inspection_date")
+  ) %>% 
+  filter(!is.na(days_until_next)) %>% 
+  select(days_until_next, score, everything(), -id, -inspection_date)
 ```
 
+Let us check the number of NA's for each variable and the number of NA rows overall:
 
+```{r}
+train_df_feat_1 %>% 
+  summarise_all(funs(round(sum(is.na(.))/n(), 3)))
 
+train_df_feat_1 %>% 
+  summarise(n_rows_na = round(sum(is.na(grade_A) | is.na(viol_not_scored))/n(), 3))
+```
+
+### 3.3 First Model
+
+```{r echo=FALSE}
+# install.packages("rpart")
+# install.packages("rpart.plot")
+library(rpart)
+library(rpart.plot)
+```
+
+```{r}
+(m1 <- rpart(days_until_next ~ ., data = train_df_feat_1, method = "anova"))
+```
+
+```{r}
+rpart.plot(m1, type = 3, digits = 3, fallen.leaves = TRUE)
+```
 
 
 
