@@ -1,8 +1,9 @@
 ---
 output: 
-  rmarkdown::github_document:
+  html_document:
     toc: TRUE
     toc_float: TRUE
+    keep_md: TRUE
 title: "Restaurant Inspections"
 ---
 
