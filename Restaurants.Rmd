@@ -1,31 +1,23 @@
 ---
 output: 
-  html_notebook:
+  rmarkdown::github_document:
     toc: TRUE
     toc_float: TRUE
 title: "Restaurant Inspections"
 ---
 
-The data set at hand contains information on restaurant inspections in New York City carried out by the Department of Health and Hygiene (DOHMH).
-
-
-# **Exploration**
-
-```{r setup}
+```{r setup, include=FALSE}
 library(tidyverse)
-```
-
-
-## Data Import
-
-```{r warning=FALSE}
+library(lubridate)
 library(readxl)
-restaurants_raw <- read_excel("New_York_City_Restaurants.xlsx")
-restaurants_raw
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## 1. Introduction
 
-## Variables
+In this data analysis project, I will try to use data on restaurant inspections to predict the number of days until the next inspection. Please note that this project has not been completed yet.
+
+The data set I use contains information on restaurant inspections in New York City carried out by the Department of Health and Hygiene (DOHMH) between 2010 and 2017. The data set contains the following variables:
 
 * CAMIS: a unique identifier for the restaurant
 
@@ -55,7 +47,7 @@ restaurants_raw
 
 * SCORE: total score for a particular inspection
 
-* GRADE: ...
+* GRADE: grade issued for the given inspection
 
 * GRADE DATE: date when the current grade was issued to the restaurant
 
@@ -63,203 +55,82 @@ restaurants_raw
 
 * INSPECTION TYPE: The type of inspection. A combination of the program and inspection type
 
+We read in the data:
 
-```{r}
-names(restaurants_raw)
+```{r warning=FALSE}
+(restaurants_raw <- read_excel("New_York_City_Restaurants.xlsx"))
 ```
 
-```{r}
-new_names <- c("id", "rest_name", "boro", "building", "street", "zipcode", "phone", "cuisine_descr",
-                            "inspection_date", "action", "violation_code", "violation_descr",
-                            "critical_flag", "score", "grade", "grade_date", "record_date", "inspection_type")
-names(restaurants_raw) <- new_names
-
-# Rename variables
-names(restaurants_raw)
-```
-
-
-## Structure of data set
+For convenience, we rename the variables. 
 
 ```{r}
-glimpse(restaurants_raw)
+new_names <- c("id", "rest_name", "boro", "building", "street", "zipcode", 
+               "phone", "cuisine_descr", "inspection_date", "action", 
+               "violation_code", "violation_descr", "critical_flag", 
+               "score", "grade", "grade_date", "record_date", 
+               "inspection_type")
+(names(restaurants_raw) <- new_names)
+rm(new_names)
 ```
 
 
+## 2. Exploratory Analysis
 
-## Univariate analysis
+Let us turn to the exploration of the data..
 
-### Number of different restaurants
-
-```{r}
-# Number of different restaurants
-restaurants_raw %>% 
-  summarise(n_rest = n_distinct(id))
-```
-
-There are 26438 different restaurants. Next we check whether restaurant id's are associated with unique names:
+### 2.1 Inspection Date
 
 ```{r}
-# First check for NA's
-nrow(restaurants_raw %>% 
-  select(id) %>% 
-  group_by(id) %>% 
-  summarise(n_na = sum(is.na(id))) %>% 
-  filter(n_na != 0))
-```
-There are no missing values for id.
-
-```{r}
-## Check if restaurant ids map to unique restaurant names
-# Are there any id's that map onto more than or less than one single name
-nrow(restaurants_raw %>% 
-  select(id, rest_name) %>% 
-  group_by(id) %>% 
-  summarise(n = n_distinct(rest_name)) %>% 
-  filter(n != 1)) 
+restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date) 
+summary(restaurants_raw$inspection_date)
 ```
 
-It seems that each id is associated with a unique restaurant name, as one would expect. 
-
-### Number of inspections per restaurant
-
-Heavily skewed to the right. 
+Apparently, there are some obeservations with an inspection date of "1900-01-01". Of course, these are wrong values. Let us look at these observations, in particular at the variables that relate to the grade of an inspection.
 
 ```{r}
 restaurants_raw %>% 
-  group_by(id) %>% 
-  summarize(n = n()) %>% 
-  ggplot(aes(x = n)) +
-  geom_density(fill = "orange") +
-  xlab("Number of inspections")
+  filter(inspection_date == "1900-01-01") %>% 
+  select(action:inspection_type)
+```
+
+Values of all observations across all the variables relating to grading are missing. 
+
+```{r}
+restaurants_raw %>% 
+  summarise(na_inspectionDate = round((sum(inspection_date == "1900-01-01")/n()), 4))
+```
+
+Those obervations amount to .03 % of all observations. For now, we will ignore those observations. 
+
+```{r}
+restaurants_raw <- restaurants_raw %>% 
+  filter(!inspection_date == "1900-01-01")
 ```
 
 
-### Boros
+### 2.2 Boros
+
+Next, let us take a look at the distribution of 'Boro'.
 
 ```{r}
 restaurants_raw$boro <- as.factor(restaurants_raw$boro)
-
 levels(restaurants_raw$boro)[levels(restaurants_raw$boro) == "Missing"] <- NA
 summary(restaurants_raw$boro)
 ```
 
-
 ```{r}
-boros <- restaurants_raw %>% 
+restaurants_raw %>% 
   group_by(boro) %>% 
   summarize(n = n_distinct(id)) %>% 
-  arrange(desc(n))
-boros
-```
-
-```{r}
-boros %>%  
   ggplot(aes(x = reorder(boro, -n), y = n)) +
-  geom_bar(stat = "identity", color = "blue") +
-  xlab("boro")
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle=60, hjust=1))
 ```
 
-### Inspection date
+Most observations are from Manhattan.
 
 
-```{r}
-# Load lubridate package
-library(lubridate)
-
-# Convert date columns of data:
-restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date) 
-```
-
-
-
-```{r}
-str(restaurants_raw$inspection_date)
-summary(restaurants_raw$inspection_date)
-```
-
-There are some observations with inspection_date "1900-01-01"!
-
-```{r}
-restaurants_raw %>% 
-  filter(inspection_date == "1900-01-01")
-```
-
-It seems that those are inspections that didn't take place. Therefore we will treat those values as NAs.
-
-```{r}
-# Replace these values in inspection_date with NA's:
-index_inspec_val1900 <- restaurants_raw$inspection_date == "1900-01-01"
-sum(index_inspec_val1900)
-
-restaurants_raw$inspection_date[index_inspec_val1900] <-  NA
-sum(is.na(restaurants_raw$inspection_date))
-```
-
-In the following we'll exclude those observations from the data set:
-
-```{r}
-# Exclusion of observations with no value of inspection date
-restaurants_raw <- restaurants_raw %>% 
-  filter(!is.na(inspection_date))
-
-nrow(restaurants_raw)
-```
-
-Write new cleaned up data set to file
-
-```{r}
-# write.csv(restaurants_raw, "restaurants_clean.csv")
-```
-
-
-
-### Cuisine description
-
-```{r}
-restaurants_raw$cuisine_descr <- as.factor(restaurants_raw$cuisine_descr)
-str(restaurants_raw$cuisine_descr)
-unique(restaurants_raw$cuisine_descr)
-
-# Relabel level "Not Listed/Not Applicable"
-sum(restaurants_raw$cuisine_descr == "Not Listed/Not Applicable")
-levels(restaurants_raw$cuisine_descr)[levels(restaurants_raw$cuisine_descr) == "Not Listed/Not Applicable"] <- NA
-sum(is.na(restaurants_raw$cuisine_descr))
-
-# Relabel level "CafÃƒÂ©/Coffee/Tea" which is at position 14 in levels vector
-cuis_ind <- levels(restaurants_raw$cuisine_descr) == levels(restaurants_raw$cuisine_descr)[14]
-levels(restaurants_raw$cuisine_descr)[cuis_ind] <- "Coffee_Tea"
-levels(restaurants_raw$cuisine_descr)
-
-# Relabel level "Latin (..." into "Latin"
-levels(restaurants_raw$cuisine_descr)[levels(restaurants_raw$cuisine_descr) == "Latin (Cuban, Dominican, Puerto Rican, South & Central American)"] <- "Latin"
-
-levels(restaurants_raw$cuisine_descr)
-```
-
-```{r}
-# Visualization
-restaurants_raw %>% 
-  group_by(cuisine_descr) %>% 
-  summarise(n = n_distinct(id)) %>% 
-  ggplot(aes(x = reorder(cuisine_descr, -n), y = n)) +
-  geom_bar(stat = "identity") +
-  xlab("Cuisine") +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
-
-restaurants_raw %>% 
-  group_by(cuisine_descr) %>% 
-  summarise(n = n_distinct(id)) %>%
-  arrange(desc(n))
-```
-
-The most common categories of restaurants are "American" and "Chinese" followed by "Café", "Other", "Pizza" , "Italian", "Mexican", "Japanese" and "Latin".
-
-
-### Actions taken
-
-This variable takes on the following values:
+### 2.3 Actions taken
 
 ```{r}
 levels(as.factor(restaurants_raw$action))
@@ -290,22 +161,13 @@ action_df %>%
 In the vast majority of inspections violations were cited. Among these, a very small number leads to restaurant closures. 
 
 
+### 2.7 Violation types
 
-
-### Violation types
-
-Next we will take a look at violation types. 
+Next, we will consider the different types of violations recorded.
 
 ```{r}
-# Conversion into factor:
 restaurants_raw$violation_code <- as.factor(restaurants_raw$violation_code)
-summary(restaurants_raw$violation_code)
-```
 
-What are ten most frequent violations?
-
-```{r}
-# Overall
 restaurants_raw %>% 
   group_by(violation_code) %>% 
   summarise(number = n()) %>% 
@@ -313,25 +175,24 @@ restaurants_raw %>%
   filter(rank <= 10) %>% 
   arrange(rank)
 ```
-10F (general violation pertaining to non-food contact surfaces) is the most common violation type.  followed by 08A (facility not vermin proof), 04L (Evidence of mice).
 
-Next, here is a quick plot of the distribution:
+10F (general violation pertaining to non-food contact surfaces) is the most common violation type. followed by 08A (facility not vermin proof), 04L (Evidence of mice).
+
+Here is a quick plot of the distribution:
 
 ```{r}
 restaurants_raw %>% 
   ggplot(aes(x = violation_code)) +
   geom_bar() +
   theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
+        axis.ticks.x = element_blank()) +
+  xlab("Violation code")
 ```
 
-
-To get a better sense of what is going on, we group the values in the range of violation_code into broader categories. To do this, we use information from the  provided by the authorities. Accordingly, violations are either scored or unscored. Among scored violations, we have to distinguish between critical and general violations. 
-
+To get a better sense of what is going on, we group the values in the range of violation_code into broader categories. To do this, we use information from the provided by the authorities. Accordingly, violations are either scored or unscored. Among scored violations, we have to distinguish between critical and general violations.
 
 ```{r}
 violations <- restaurants_raw$violation_code
-
 patterns <- list(
   violations %in% str_c("02", LETTERS[1:10]) ~ "crit_food_temperature",
   violations %in% str_c("03", LETTERS[1:7]) ~ "crit_food_source",
@@ -345,82 +206,56 @@ patterns <- list(
   violations == "99B" ~ "gen_other",
   !is.na(violations) ~ "not_scored"
   )
-
 # New variable violation_group:
 restaurants_raw <- 
   restaurants_raw %>% 
   mutate(violation_group = case_when(!!!patterns))
-
 rm(patterns)
 rm(violations)
 ```
 
-As a sanity check, verify that the number of NAs in violation_group and violation_code is the same:
-
-```{r}
-sum(is.na(restaurants_raw$violation_group)) == sum(is.na(restaurants_raw$violation_code))
-```
-
-Distribution of violation_group:
-
+Here is bar plot displaying the distribution
 ```{r}
 restaurants_raw %>% 
   group_by(violation_group) %>% 
   filter(!is.na(violation_group)) %>% 
   summarize(n = n()) %>% 
   ggplot(aes(reorder(violation_group, -n), n)) +
-  geom_bar(stat = "identity", fill = "blue")
+  geom_bar(stat = "identity", fill = "blue") +
+  theme(axis.text.x = element_text(angle=60, hjust=1))
 ```
 
+Some categories barely contain any observations. For the time being, we will keep the chosen binning. We are going to revisit this point in the context of feature engineering.
 
-Let us look at the distribution of violation_code again, now using the information which group a given violation belongs:
+Here is the distribution of violation code again. This time we incorporate the variable violation group.
 
 ```{r}
-# Overall
 restaurants_raw %>% 
   filter(!is.na(violation_group)) %>% 
   ggplot(aes(x = violation_code, fill = violation_group)) +
   geom_bar() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
-
 ```
 
-... and by boro:
+### 2.8 Inspection types
+
+The variable inspection type takes on 34 distinct values:
 
 ```{r}
-# By boro
 restaurants_raw %>% 
-  filter(!is.na(boro), !is.na(violation_group)) %>% 
-  ggplot(aes(x = violation_code, fill = violation_group)) +
-  geom_bar() +
-  facet_wrap(~ boro) +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
+     summarise(n_distinct(inspection_type))
 ```
 
-
-
-
-
-
-
-
-### Inspection type
+These are the values:
 
 ```{r}
-str(restaurants_raw$inspection_type)
-summary(as.factor(restaurants_raw$inspection_type))
+restaurants_raw %>% 
+  group_by(inspection_type) %>% 
+  summarise()
 ```
 
-Check for NAs:
-
-```{r}
-summary(restaurants_raw$inspection_type)
-sum(!is.na(restaurants_raw$inspection_type))
-```
-
-We'll create new variable inspection_type2 by collapsing the range into a smaller set of values.
+We collapse these values into a smaller range:
 
 ```{r}
 restaurants_raw$inspection_type2 <-  restaurants_raw %>% 
@@ -433,54 +268,46 @@ restaurants_raw$inspection_type2 <-  restaurants_raw %>%
 unique(restaurants_raw$inspection_type2)
 ```
 
-
-Let us construct dummy variables for the categories above which will come in handy, once we get to the task of prediction, we'll use 'LimitedInspection' as base category:
+Here a display of the distribution:
 
 ```{r}
-for(level in unique(restaurants_raw$inspection_type2)){
-  
-  if (level == "LimitedInspection") {
-    next
-  } else {
-    restaurants_raw[paste("dummy", level, sep = "_")] <- 
-      ifelse(restaurants_raw$inspection_type2 == level &
-             restaurants_raw$inspection_type2 != "SecondComplianceInspection", 
-             1, 0)
-  }
-}
+restaurants_raw %>% 
+  group_by(inspection_type2) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(reorder(as.factor(inspection_type2), -n), n)) +
+  geom_bar(stat = "identity", color = "orange") +
+  xlab("Inspection type") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
 
+Again, there a are categories that are 'almost empty'. The vast majority of observations are initial and re-inspections:
+
+```{r}
+restaurants_raw %>% 
+  group_by(inspection_type2) %>% 
+  summarise(n = n(), prop = round(n/nrow(restaurants_raw), 5)) %>% 
+  arrange(desc(n))
+```
+
+For later purposes, we contruct a dummy variable for the category 'InitialInspection'.
+
+```{r}
+restaurants_raw$dummy_InitialInspection <- 
+  ifelse(restaurants_raw$inspection_type2 == "InitialInspection", 1, 0)
 names(restaurants_raw)
 ```
 
 
-### Grade and Score
-
-Grades:
+### 2.9 Grade
 
 ```{r}
 restaurants_raw %>% 
   group_by(grade) %>% 
   summarise(n = n()) %>% 
   arrange(desc(n))
-         
 ```
 
-
-Relationship between grade and inspection date:
-
-```{r}
-restaurants_raw %>% 
-  select(grade, inspection_date) %>% 
-  filter(!is.na(grade)) %>%
-  separate(inspection_date, into = c("year", "month", "day")) %>% 
-  group_by(year) %>% 
-  summarise(prop_pending = round(mean(grade %in% c("P","Z")), 3),
-            prop_notYetGraded = round(mean(grade == "Not Yet Graded"), 3))
-```
-
-The proportion of grades pending and not yet graded is higher for earlier inspections, which is not surprising. 
-
-Next, we'll look at how the number of NAs for 'grade' relates to the number of NAs for 'inspection_type.' As a reminder, above we saw that there are 187702 missing values for 'grade' overall.
+There is a massive amount of NA's. We are going to investigate how the number of NAs for ‘grade’ relates to ‘score’ and ‘inspection_type.’ More precisely, we know that on initial inspections no grade is issued, if the corresponding score is above 14. It seems plausible that this would lead to a value of NA for grade.
 
 ```{r}
 restaurants_raw %>% 
@@ -488,54 +315,102 @@ restaurants_raw %>%
   filter(inspection_type2 == "InitialInspection", score > 14) %>%
   group_by(grade) %>% 
   summarise(n = n())
-  
 ```
 
-So about 73 % of the missing values are due to a score of 14 or higher. Furthermore, out of the 1915 observations with value 'Not yet graded', 1548 are the result of a high score (above 13) in the initial inspection.
+So about 73 % of the missing values are due to a score of 14 or higher. Furthermore, out of the 1915 observations with value ‘Not yet graded’, 1548 are the result of a high score (above 13) in the initial inspection. We will recode these NA’s to “Not Yet Graded” to reduce the number of missing values for ‘grade’.
 
-Let us, for later purposes, create a dummy variable for the different levels of 'grade', where we choose 'NA' to be our base level:
+```{r}
+# Recode NA's with inspection type = 'InitialInspection' and 'score' > 14 to "Not Yet Graded":
+restaurants_raw <- restaurants_raw %>% 
+  mutate(grade = case_when(
+    is.na(.$grade) & 
+      .$inspection_type2 == "InitialInspection" &
+      .$score > 14 ~ "Not Yet Graded",
+    TRUE ~ grade
+  ))
+```
+
+We have reduced the number of NA's significantly:
+
+```{r}
+restaurants_raw %>% 
+  summarise(prop_na = round(mean(is.na(grade)), 2),
+            n_not_graded = sum(grade == "Not Yet Graded", na.rm = T))
+```
+
+Here is the distribution of the proportion of inspections with an NA for grade per restaurant:
+
+```{r}
+restaurants_raw %>% 
+  group_by(id, inspection_date) %>% 
+  summarise(prop_gradeNA = mean(is.na(grade))) %>% 
+  ggplot(aes(x = prop_gradeNA)) + 
+  geom_histogram(bins = 30) + 
+  xlab("proportion of NA's for inspection grade per restaurant")
+```
+
+It seems that for most restaurants there is no inspection with a missing value for  On the other hand, there are some restaurants for whom all values for grade are NA.
+
+```{r}
+restaurants_raw %>% 
+  group_by(id, inspection_date) %>% 
+  summarise(prop_gradeNA = round(mean(is.na(grade)), 3)) %>% 
+  ungroup() %>% 
+  group_by(prop_gradeNA) %>% 
+  summarise(proportion_of_restaurants = round(n()/nrow(.), 3)) %>% 
+  arrange(desc(proportion_of_restaurants))
+```
+
+
+As we did before, we are going to construct dummy variables, this time for the different levels of grade. We'll use "Z" as base category: 
 
 ```{r}
 temp_index <- restaurants_raw$grade == "Not Yet Graded"
 restaurants_raw$grade[temp_index] <- "NotYetGraded"
-
+rm(temp_index)
 for(level in unique(restaurants_raw$grade)){
   
-  if (is.na(level)) {
+  if (is.na(level) | level == "Z") {
     next
   } else {
     restaurants_raw[paste("dummy", level, sep = "_")] <- 
-      ifelse(restaurants_raw$grade == level, 1, 0)
+      ifelse(!is.na(restaurants_raw$grade) & 
+               restaurants_raw$grade == level, 1, 0)
   }
+  
 }
 
+rm(level)
 names(restaurants_raw)
 ```
 
+### 2.10 Score
 
-Let us turn to 'score':
+Let us turn to 'score'.
 
 ```{r}
 summary(restaurants_raw$score)
 ```
 
-There are 19514 NA's. We know that there are 16530 observations that refer to violations that are not scored. These observations are expected to have NA for 'score':
+There are 19514 NA’s. We know that there are 16530 observations that refer to violations that are not scored:
 
+```{r}
+restaurants_raw %>% 
+  group_by(violation_group) %>% 
+  summarise(n = n()) %>% 
+  filter(violation_group == "not_scored")    
+```
+
+
+These observations are expected to have NA for ‘score’:
 ```{r}
 restaurants_raw %>% 
   select(violation_group, score) %>% 
   filter(violation_group == "not_scored") %>% 
-  summarise(n = n(), n_na_score = sum(is.na(score)), round(n_na_score/n, 2))
-  
+  summarise(n = n(), n_na_score = sum(is.na(score)), prop_na_score = round(n_na_score/n, 2))
 ```
 
-There are 16530 observations that belong to the 'not_scored' violation group. Indeed, the vast majority of those, namely 16086, has a missing score value (97 %). These observations account for 82 % of all of the 19514 NA's for 'score':
-
-```{r}
-round(16086/19514, 2)
-```
-
-We will recode their score to 0:
+Hence, these observations account for 82 % of all of the 19514 NA’s for ‘score’. We will recode them to have a score of 0:
 
 ```{r}
 # Recode score NA's for which violation group is 'not_scored' to 0:
@@ -544,36 +419,23 @@ restaurants_raw$score[restaurants_raw$violation_group == "not_scored"] <- 0
 sum(is.na(restaurants_raw$score))
 ```
 
-
-What about the remaining 18 %, the 3428 other missing values for 'score'?
+What about these remaining 3428 missing values for ‘score’? Let us consider the relationship with violation group:
 
 ```{r}
 restaurants_raw %>% 
   select(violation_group, score) %>% 
   filter(is.na(violation_group)) %>%  
   summarise(n = n(), n_na_score = sum(is.na(score)))
-    
 ```
 
-Hence, the rest of the NA's for score are associated with NA's on 'violation_group'. 
-
-So let us turn to the NA's for the variable 'violation_group'. One cause for an NA here may be that on a given inspection, there was no violation at all.
+Hence, the rest of the NA’s for score are associated with NA’s on ‘violation_group’. So let us turn to the NA’s for the variable ‘violation_group’. One cause for an NA here may be that on a given inspection, there was no violation at all. So what is the number of NA's for score among observations that do not exhibit a violation?
 
 ```{r}
-# Check for NA's for violation group among observations where there was no violation on the respective inspection:
 restaurants_raw %>% filter(action == "NoViol") %>% 
-  summarise(violNAs_among_noViolation = sum(is.na(violation_group)), 
-            scoreNAs_among_noViolation = sum(is.na(score)))
+  summarise(scoreNAs_among_noViolation = sum(is.na(score)))
 ```
 
-We see that almost all of the remaining NA's for score are due to the absence of violations on the respective inspection. We will recode these scores accordingly, by assigning them the value 0 as well:
-
-```{r}
-restaurants_raw$score[restaurants_raw$action == "NoViol" & is.na(restaurants_raw$score)] <- 0
-sum(is.na(restaurants_raw$score))
-```
-
-So now, there are only 2 missing values for score left. We'll assign them the median value of the non-Na scores:
+Apparently, almost all of 3428, namely 3426, can be assumed to be the result of a non-violation. So now, there are only 2 missing values for score left. We’ll assign them the median value of the non-Na scores:
 
 ```{r}
 restaurants_raw$score[is.na(restaurants_raw$score)] <-
@@ -581,118 +443,9 @@ restaurants_raw$score[is.na(restaurants_raw$score)] <-
 sum(is.na(restaurants_raw$score))
 ```
 
+## 3. Predicting the number of days until the next inspection
 
-
-Here is a plot of the distribution of 'score' of all non-NA observations:
-
-```{r}
-restaurants_raw %>% 
-  ggplot(aes(x = score)) +
-  geom_histogram(bins = 25)
-
-restaurants_raw %>% 
-  ggplot(aes(x = 1, y = score)) +
-  geom_boxplot()
-```
-
-It is also sensible to change the NA's for violation group where there was no violation. Let us also see how many NA's for violation group there are overall:
-
-```{r}
-restaurants_raw %>% 
-  summarise(NA_overall = sum(is.na(violation_group)), 
-            NA_noViol = sum(is.na(violation_group) & action == "NoViol"))
-```
-
-We will the name the new category "None":
-
-```{r}
-# 
-temp <- restaurants_raw$action == "NoViol" & is.na(restaurants_raw$violation_group)
-restaurants_raw$violation_group[temp] <- "None"
-unique(restaurants_raw$violation_group)
-```
-
-
-For later use, we construct dummy variables for the different violation groups, with 'NA' as base group:
-
-```{r}
-for(level in unique(restaurants_raw$violation_group)){
-  if (is.na(level)) {
-    next
-  } else {
-    restaurants_raw[paste("dummy", level, sep = "_")] <- 
-    ifelse(restaurants_raw$violation_group == level, 1, 0)
-  }
-  
-  
-}
-names(restaurants_raw)
-```
-
-
-### Critical flag
-
-Conversion into factor and renaming of levels:
-
-```{r}
-restaurants_raw$critical_flag <- as.factor(restaurants_raw$critical_flag)
-summary(as.factor(restaurants_raw$critical_flag))
-levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
-levels(restaurants_raw$critical_flag)
-
-```
-
-Recode levels:
-
-```{r}
-summary(as.factor(restaurants_raw$critical_flag))
-levels(restaurants_raw$critical_flag) <- c("Critical", "Not_Applicable", "Not_Critical")
-levels(restaurants_raw$critical_flag)
-```
-
-
-
-
-
-
-## Proportion of critical flag conditional on cuisine
-
-Critical flag by cuisine: 
-
-```{r}
-restaurants_raw %>% 
-  group_by(cuisine_descr) %>% 
-  summarise(n = n_distinct(id)) %>%
-  arrange(desc(n)) 
-```
-
-including only 7 most frequent cuisines...
-
-```{r}
-restaurants_raw %>% 
-  filter(cuisine_descr %in% c("American", "Chinese", 
-                              "Coffee_Tea", 
-                              "Other", "Pizza", 
-                              "Italian", "Mexican",
-                              "Japanese", 
-                              "Latin",
-                              "Bakery")) %>% 
-  ggplot(aes(x = cuisine_descr, fill = critical_flag)) +
-  geom_bar(position = "fill")
-```
-
-The proportion of critical flag does not vary with cuisine. In the category "Other" there is a large proportion of observations labeled "Not Applicable".
-
-
-
-# **Prediction of time between inspections**  
-
-## Time passed between inspections
-
-```{r}
-library(lubridate)
-restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date) 
-```
+### 3.1 Split into training and test data
 
 As a first step, we will divide our data set into a training and a test data set, putting 2/3 of the restaurants into the training set.
 
@@ -717,7 +470,6 @@ restaurants_raw %>%
   geom_histogram(bins = 30) +
   xlab("Days until next inspection") +
   facet_grid(. ~ group) 
-  
 ```
 
 The distribution of the target seems reasonably similar across training and test data. Now, we'll split the data set into training and test data:
@@ -732,7 +484,8 @@ test_df <- restaurants_raw %>%
   filter(id %in% test_ids) 
 ```
 
-So now, we remove the original data set and the test data from the workspace and save the latter to a file:
+
+So now, we remove the original data set and test data from the workspace and save the latter to a file:
 
 ```{r}
 write.csv(test_df, "test_restaurants.csv")
@@ -740,89 +493,21 @@ rm(restaurants_raw)
 rm(test_df)
 ```
 
-Next, We will construct a table containing the difference between inspections and the total score for a given inspection. Also, we have to make sure that the distributions of the target in training and test data are similar.   
+
+### 3.2
 
 ```{r}
-make_diff_score_df <- function(x) {
-  x %>% 
-  select(id, inspection_date, score) %>% 
-  group_by(id, inspection_date) %>%
-  arrange(inspection_date) %>%
-  summarise(score_total = sum(score, na.rm = TRUE)) %>% 
-  mutate(difference = lead(inspection_date) - inspection_date) %>% 
-  ungroup() 
-}
-```
-
-
-
-From now on we will be working with training data exclusively.
-
-```{r}
-# Data frame containing restaurant id, inspection date, total score and time between inspections
-train_diff_score <- train_df %>% make_diff_score_df()
-train_diff_score
-```
-
-Next, we construct a data frame containing id, inspection date and the dummy variables for inspection type, violation group and grade: 
-
-```{r}
-# We exclude the dummy variable 'dummy_NA' which signifies an unknown violation group for a recorded violation on a given inspection for a given restaurant
-(train_inspec_grade_viol <- train_df %>% 
-  select(id, inspection_date, starts_with("dummy")) %>% 
-  arrange(id, inspection_date))
-```
-
-Now, we will transform the data frame 'train_inspec_grade_viol' so that each row corresponds to an inspection on a given date and at a given restaurant: 
-
-```{r}
-# Tranformation of sample_violations:
-(train_inspec_grade_viol <- train_inspec_grade_viol %>% 
+train_df %>% 
+  select(id, inspection_date, inspection_type2, score, grade,
+         dummy_A, dummy_B, dummy_C, dummy_NotYetGraded, dummy_P, dummy_Z) %>% 
   group_by(id, inspection_date) %>% 
-  summarise_at(vars(starts_with("dummy")), ~ ifelse(sum(.) != 0, 1, 0)) %>% 
   arrange(id, inspection_date) %>% 
-  ungroup())
+  summarise_at(c("grade", "score", "inspection_type2", 
+                 "dummy_A", "dummy_B", "dummy_C",
+                 "dummy_NotYetGraded", "dummy_P", "dummy_Z"), 
+               .funs = list(first)) %>% 
+  mutate(days_until_next = lead(inspection_date) - inspection_date)
 ```
-
-We'll join the table 'train_inspec_grade_viol' with the table 'train_diff_score', created earlier, for convenience reproduced below:
-
-```{r}
-train_diff_score
-```
-
-They have a shared key given by the pair (id, inspection_date). Hence we will join those tables to obtain the following data frame:
-
-```{r}
-(train_df_complete <- train_diff_score %>% 
-  inner_join(train_inspec_grade_viol, by = c("id", "inspection_date")) %>% 
-  filter(!is.na(difference))) 
-```
-
-Note that we have omitted the rows with an NA for difference. Since inspection date had no NA's, the NA's for difference are exactly the ones resulting from the manner in which the variable was created. More precisely, for each restaurant, the last and only the last inspection is NA. Because there is no subsequent inspection, there is no loss of relevant information when removing that observation. 
-
-# Baseline Model
-
-First we load the packages 'rpart' and 'rpart.plot'
-
-```{r echo=FALSE}
-# install.packages("rpart")
-# install.packages("rpart.plot")
-library(rpart)
-library(rpart.plot)
-```
- 
-In the first model we include the total score on a given inspection, and all dummy variables for inspection type, grade and violation groups, respectively.
-
-```{r}
-(m1 <- rpart(difference ~ ., data = train_df_complete, method = "anova"))
-```
-
-```{r}
-rpart.plot(m1, type = 3, digits = 3, fallen.leaves = TRUE)
-```
-
-
-
 
 
 
