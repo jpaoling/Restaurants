@@ -1,9 +1,8 @@
 ---
 output: 
-  html_document:
+  html_notebook:
     toc: TRUE
     toc_float: TRUE
-    keep_md: TRUE
 title: "Restaurant Inspections"
 ---
 
@@ -16,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## 1. Introduction
 
-In this data analysis project, I will try to use data on restaurant inspections to predict the number of days until the next inspection. Please note that this project has not been completed yet.
+In this data analysis project, I will try to use data on restaurant inspections to predict the number of days until the next inspection.
 
 The data set I use contains information on restaurant inspections in New York City carried out by the Department of Health and Hygiene (DOHMH) between 2010 and 2017. The data set contains the following variables:
 
