@@ -108,7 +108,45 @@ restaurants_raw <- restaurants_raw %>%
 ```
 
 
-### 2.2 Boros
+(Furthermore, we will restrict our analysis to inspections that occured before 2017:)
+
+```{r}
+# restaurants_raw <- restaurants_raw %>%
+  # filter("2011-06-01" <= inspection_date, inspection_date < "2017-02-03")
+```
+
+### 2.2 Cuisine description
+
+```{r}
+restaurants_raw$cuisine_descr <- as.factor(restaurants_raw$cuisine_descr)
+
+# Relabel level "CafÃƒÂ©/Coffee/Tea" which is at position 14 in levels vector
+cuis_ind <- levels(restaurants_raw$cuisine_descr) == levels(restaurants_raw$cuisine_descr)[14]
+levels(restaurants_raw$cuisine_descr)[cuis_ind] <- "Coffee_Tea"
+
+# Relabel level "Latin (..." into "Latin"
+levels(restaurants_raw$cuisine_descr)[levels(restaurants_raw$cuisine_descr) == "Latin (Cuban, Dominican, Puerto Rican, South & Central American)"] <- "Latin"
+
+# Lump together
+restaurants_raw <- restaurants_raw %>% 
+  mutate(cuisine_descr = fct_lump(f = cuisine_descr, n = 20))
+```
+
+Let us look at the distribution of 'cuisine_descr':
+
+```{r}
+restaurants_raw %>% 
+  group_by(cuisine_descr) %>% 
+  summarise(n = n_distinct(id)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = reorder(cuisine_descr, -n), y = n)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle=60, hjust=1))
+```
+
+
+
+### 2.3 Boros
 
 Next, let us take a look at the distribution of 'Boro'.
 
@@ -130,7 +168,7 @@ restaurants_raw %>%
 Most observations are from Manhattan.
 
 
-### 2.3 Actions taken
+### 2.4 Actions taken
 
 ```{r}
 levels(as.factor(restaurants_raw$action))
@@ -161,7 +199,7 @@ action_df %>%
 In the vast majority of inspections violations were cited. Among these, a very small number leads to restaurant closures. 
 
 
-### 2.4 Violation types
+### 2.5 Violation types
 
 Next, we will consider the different types of violations recorded.
 
@@ -192,29 +230,23 @@ restaurants_raw %>%
 To get a better sense of what is going on, we group the values in the range of violation_code into broader categories. To do this, we use information from the provided by the authorities. Accordingly, violations are either scored or unscored. Among scored violations, we have to distinguish between critical and general violations.
 
 ```{r}
-violations <- restaurants_raw$violation_code
-patterns <- list(
-  violations %in% str_c("02", LETTERS[1:10]) ~ "crit_food_temperature",
-  violations %in% str_c("03", LETTERS[1:7]) ~ "crit_food_source",
-  violations %in% str_c("04", LETTERS[1:15]) ~ "crit_food_protection",
-  violations %in% str_c("05", LETTERS[1:9]) ~ "crit_facility_design",
-  violations %in% str_c("06", LETTERS[1:9]) ~ "crit_personal_hygiene",
-  violations == "07A" ~ "crit_other",
-  violations %in% str_c("08", LETTERS[1:3]) ~ "gen_vermin",
-  violations %in% str_c("09", LETTERS[1:3]) ~ "gen_food_source",
-  violations %in% str_c("10", LETTERS[1:10]) ~ "gen_facility_manage",
-  violations == "99B" ~ "gen_other",
-  !is.na(violations) ~ "not_scored"
-  )
 # New variable violation_group:
 restaurants_raw <- 
   restaurants_raw %>% 
-  mutate(violation_group = case_when(!!!patterns))
-rm(patterns)
-rm(violations)
+  mutate(violation_group = case_when(
+    violation_code %in% str_c("02", LETTERS[1:10]) ~ "food_temperature",
+    violation_code %in% c(str_c("03", LETTERS[1:7]), str_c("09", LETTERS[1:3])) ~ "food_source",
+    violation_code %in% str_c("04", LETTERS[1:10]) ~ "food_protection",
+    violation_code %in% c(str_c("05", LETTERS[1:9]), str_c("10", LETTERS[1:10])) ~ "facility",
+    violation_code %in% str_c("06", LETTERS[1:9]) ~ "hygiene",
+    violation_code %in% str_c("04", LETTERS[11:15]) ~ "vermin",
+    violation_code %in% c("07A", "99B") ~ "other_scored",
+    !is.na(violation_code) ~ "not_scored"
+  )
+)
 ```
 
-Here is bar plot displaying the distribution
+Here is a bar plot displaying the distribution
 ```{r}
 restaurants_raw %>% 
   group_by(violation_group) %>% 
@@ -238,11 +270,11 @@ restaurants_raw %>%
         axis.ticks.x = element_blank())
 ```
 
-For later use, we construct dummy variables for the different violation groups, with 'crit_other' as base group:
+For later use, we construct indicator variables for the different violation groups:
 
 ```{r}
 for(level in unique(restaurants_raw$violation_group)){
-  if (is.na(level) | level == "crit_other") {
+  if (is.na(level)) {
     next
   } else {
     restaurants_raw[paste("viol", level, sep = "_")] <- 
@@ -254,7 +286,7 @@ names(restaurants_raw)
 
 
 
-### 2.5 Inspection types
+### 2.6 Inspection types
 
 The variable inspection type takes on 34 distinct values:
 
@@ -309,12 +341,12 @@ For later purposes, we contruct a dummy variable for the category 'InitialInspec
 
 ```{r}
 restaurants_raw$dummy_InitialInspection <- 
-  ifelse(restaurants_raw$inspection_type2 == "InitialInspection", 1, 0)
+  as.factor(ifelse(restaurants_raw$inspection_type2 == "InitialInspection", "Initial", "Not_Initial"))
 names(restaurants_raw)
 ```
 
 
-### 2.6 Grade
+### 2.7 Grade
 
 ```{r}
 restaurants_raw %>% 
@@ -337,9 +369,9 @@ So about 73 % of the missing values are due to a score of 14 or higher. Furtherm
 
 ```{r}
 # Recode NA's with inspection type = 'InitialInspection' and 'score' > 14 to "Not Yet Graded":
-restaurants_raw <- restaurants_raw %>% 
+restaurants_raw <- restaurants_raw %>%
   mutate(grade = case_when(
-    is.na(.$grade) & 
+    is.na(.$grade) &
       .$inspection_type2 == "InitialInspection" &
       .$score > 14 ~ "Not Yet Graded",
     TRUE ~ grade
@@ -378,7 +410,7 @@ restaurants_raw %>%
 ```
 
 
-As we did before, we are going to construct dummy variables, this time for the different levels of grade. We'll use "Z" as base category: 
+As we did before, we are going to construct dummy variables, this time for the different levels of grade. We'll use "Z" as base level: 
 
 ```{r}
 temp_index <- restaurants_raw$grade == "Not Yet Graded"
@@ -399,7 +431,13 @@ rm(level)
 names(restaurants_raw)
 ```
 
-### 2.7 Score
+```{r}
+restaurants_raw <- restaurants_raw %>% 
+  mutate(grade = as.factor(grade))
+```
+
+
+### 2.8 Score
 
 Let us turn to 'score'.
 
@@ -407,7 +445,22 @@ Let us turn to 'score'.
 summary(restaurants_raw$score)
 ```
 
-There are 19514 NA’s. We know that there are 16530 observations that refer to violations that are not scored:
+
+
+There are 19514 NA’s. So let us look at the proportion of inspections that exhibit an NA for 'score'. 
+
+```{r}
+restaurants_raw %>% 
+  group_by(id, inspection_date) %>% 
+  summarise(n_na = sum(is.na(score))) %>% 
+  ungroup() %>% 
+  summarise(n_na = round(sum(n_na)/n(), 3))
+```
+
+15 % of all inspections have a missing value for 'score'.
+
+
+We know that there are 16530 observations that refer to violations that are not scored:
 
 ```{r}
 restaurants_raw %>% 
@@ -425,40 +478,26 @@ restaurants_raw %>%
   summarise(n = n(), n_na_score = sum(is.na(score)), prop_na_score = round(n_na_score/n, 2))
 ```
 
-Hence, these observations account for 82 % of all of the 19514 NA’s for ‘score’. We will recode them to have a score of 0:
+Hence, these observations account for 82 % of all of the 19514 NA’s for ‘score’. What about the remaining 3428 missing values for ‘score’? Let us consider the relationship with violation group:
 
 ```{r}
-# Recode score NA's for which violation group is 'not_scored' to 0:
-restaurants_raw$score[restaurants_raw$violation_group == "not_scored"] <- 0
-# Remaining NA's:
-sum(is.na(restaurants_raw$score))
-```
-
-What about these remaining 3428 missing values for ‘score’? Let us consider the relationship with violation group:
-
-```{r}
-restaurants_raw %>% 
-  select(violation_group, score) %>% 
-  filter(is.na(violation_group)) %>%  
+restaurants_raw %>%
+  select(violation_group, score) %>%
+  filter(is.na(violation_group)) %>%
   summarise(n = n(), n_na_score = sum(is.na(score)))
 ```
 
-Hence, the rest of the NA’s for score are associated with NA’s on ‘violation_group’. So let us turn to the NA’s for the variable ‘violation_group’. One cause for an NA here may be that on a given inspection, there was no violation at all. So what is the number of NA's for score among observations that do not exhibit a violation?
+Hence, the rest of the NA’s for score are associated with NA’s on ‘violation_group’. So let us turn to the NA’s for the variable ‘violation_group’. One cause for an NA here may be that on a given inspection, there was no violation at all. So what is the number of NA's for violation group among observations that do not exhibit a violation?
 
 ```{r}
 restaurants_raw %>% filter(action == "NoViol") %>% 
-  summarise(scoreNAs_among_noViolation = sum(is.na(score)))
+  summarise(viol_group_NA = sum(is.na(violation_group)))
 ```
 
-Apparently, almost all of 3428, namely 3426, can be assumed to be the result of a non-violation. So now, there are only 2 missing values for score left. We’ll assign them the median value of the non-Na scores:
 
-```{r}
-restaurants_raw$score[is.na(restaurants_raw$score)] <-
-  median(restaurants_raw$score[!is.na(restaurants_raw$score)])
-sum(is.na(restaurants_raw$score))
-```
 
 ## 3. Predicting the number of days until the next inspection
+
 
 ### 3.1 Split into training and test data
 
@@ -483,6 +522,7 @@ restaurants_raw %>%
   mutate(group = ifelse(id %in% train_ids, "Training", "Test")) %>% 
   ggplot(aes(as.numeric(difference))) +
   geom_histogram(bins = 30) +
+  scale_x_continuous(breaks = seq(0, 1000, by = 100)) +
   xlab("Days until next inspection") +
   facet_grid(. ~ group) 
 ```
@@ -505,71 +545,242 @@ So now, we remove the original data set and test data from the workspace and sav
 ```{r}
 write.csv(test_df, "test_restaurants.csv")
 rm(restaurants_raw)
-rm(test_df)
 ```
 
 
-### 3.2 Features and target
+### 3.2 Features and response
+
+In the following we will use regression trees to predict the number of days until the next inspection, using the score and grade on the last inspection, and number of violations in the respective violation groups on the last inspection.
 
 ```{r}
-# Create data set with features for inspection type, score, grade and number of violations:
-train_df_feat_1 <- train_df %>% 
-  select(id, inspection_date, dummy_InitialInspection, score, 
-         matches("grade_"), -grade_date, matches("viol_")) %>% 
+## Create data set with features for inspection type, score, grade and number of violations:
+
+make_df_InitScoreGradeDaysCuisine <- function(df) {
+  df %>% 
+    select(id, inspection_date, dummy_InitialInspection, score, 
+           grade, cuisine_descr) %>% 
+    group_by(id, inspection_date) %>% 
+    arrange(id, inspection_date) %>% 
+    summarise_at(vars(c("grade","dummy_InitialInspection", "score", "cuisine_descr")), 
+                 .funs = list(first)) %>% 
+    mutate(days_until_next = lead(inspection_date) - inspection_date) %>%
+    ungroup()
+}
+
+make_df_sumViolFlags <- function(df) {
+  df %>% 
+    select(id, inspection_date, starts_with("viol_"), starts_with("critical")) %>% 
+  mutate(critical_flag = case_when( critical_flag == "Critical" ~ 1, 
+                                    TRUE ~ 0 )) %>% 
   group_by(id, inspection_date) %>% 
   arrange(id, inspection_date) %>% 
-  summarise_at(vars(starts_with("grade"), c("dummy_InitialInspection", "score")), 
-               .funs = list(first)) %>% 
-  mutate(days_until_next = lead(inspection_date) - inspection_date) %>% 
-  ungroup() %>% 
-  left_join(
-    train_df %>% 
-      select(id, inspection_date, starts_with("viol_")) %>% 
-      group_by(id, inspection_date) %>% 
-      arrange(id, inspection_date) %>% 
-      summarise_at(vars(starts_with("viol")), ~ sum(.)) %>% 
-      ungroup(),
-    by = c("id", "inspection_date")
-  ) %>% 
-  filter(!is.na(days_until_next)) %>% 
-  select(days_until_next, score, everything(), -id, -inspection_date)
+  summarise_at(vars(starts_with("viol"), starts_with("critical")), ~ sum(., na.rm = TRUE)) %>% 
+  ungroup()
+}
+
+make_df <- function(df) {
+    left_join( make_df_InitScoreGradeDaysCuisine(df) , make_df_sumViolFlags(df) ,
+              by = c("id", "inspection_date") ) %>% 
+    filter(!is.na(days_until_next)) %>% 
+    select(id, inspection_date, days_until_next, score, everything())
+}
 ```
 
-Let us check the number of NA's for each variable and the number of NA rows overall:
 
-```{r}
-train_df_feat_1 %>% 
-  summarise_all(funs(round(sum(is.na(.))/n(), 3)))
 
-train_df_feat_1 %>% 
-  summarise(n_rows_na = round(sum(is.na(grade_A) | is.na(viol_not_scored))/n(), 3))
-```
 
 ### 3.3 First Model
 
-```{r echo=FALSE}
-# install.packages("rpart")
-# install.packages("rpart.plot")
+```{r}
 library(rpart)
 library(rpart.plot)
 ```
 
+
+The first model will leave the NA's for 'score' as is. 
+
+
 ```{r}
-(m1 <- rpart(days_until_next ~ ., data = train_df_feat_1, method = "anova"))
+(m1 <- rpart(days_until_next ~ ., 
+             data = train_df %>% make_df() %>% select(-id, -inspection_date), 
+             method = "anova" ))
 ```
+
 
 ```{r}
 rpart.plot(m1, type = 3, digits = 3, fallen.leaves = TRUE)
 ```
 
 
+### 3.4 Second Model: Imputed NA's
+
+So far, so good. Let us now impute the missing values for score and grade by predicting those values using observations on all other variables where they are not missing. 
+
+First, we'll recombine training and test data:
+
+```{r}
+combi <- train_df %>% 
+  make_df() %>% 
+  bind_rows(make_df(test_df))
+```
+
+Then we impute the missing values for score and grade by fitting regression trees on the respective sets of non-missing observations: 
+
+```{r}
+map ( combi %>% select( -id, -inspection_date ), ~ sum ( is.na ( . ) ) )
+```
 
 
+```{r}
+# Score
+scoreFit <- combi %>% filter(!is.na(score)) %>% select(-id, -inspection_date, -days_until_next) %>%
+  rpart(score ~ ., data = ., method = "anova")
+combi$score[is.na(combi$score)] <- predict(scoreFit, combi[is.na(combi$score),])
+
+# Days_since_last
+# daysFit <- combi %>% filter(!is.na(days_since_last)) %>% select(-id, -inspection_date, -days_until_next) %>%   rpart(days_since_last ~ ., data = ., method = "anova")
+# combi$days_since_last[is.na(combi$days_since_last)] <-
+#   predict(daysFit, combi[is.na(combi$days_since_last),])
+
+# Grade
+gradeFit <- combi %>% filter(!is.na(grade)) %>% select(-id, -inspection_date, -days_until_next) %>%
+  rpart(grade ~ ., data = ., method = "class")
+combi$grade[is.na(combi$grade)] <- predict(gradeFit, combi[is.na(combi$grade),], type = "class")
+
+```
+
+Check that there are no missing values any more:
+
+```{r}
+map(combi %>% select(score, grade), ~ sum(is.na(.)))
+```
+
+Finally we split the data into training and test data again:
+
+```{r}
+train_df <- combi %>% 
+  filter(id %in% train_ids) %>% 
+  select(-id, -inspection_date)
+
+test_df <- combi %>%
+  filter(id %in% test_ids) %>% 
+  select(-id, -inspection_date)
+```
 
 
+So next, we'll fit a second model with imputed NA's:
+
+```{r}
+(m2 <- rpart(days_until_next ~ .,
+             data = train_df,
+             method = "anova"))
+```
+
+```{r}
+rpart.plot(m2, type = 3, digits = 3, fallen.leaves = TRUE)
+```
+
+### 3.5 Cross Validation
+
+Finally let's use cross validation to fit one final model:
+
+```{r}
+library(caret)
+library(e1071)
+```
 
 
+```{r}
+set.seed(42)
+myControl <- trainControl(
+  
+  method = "cv",
+  number = 10
+  
+)
 
+cp.grid <- expand.grid(.cp = (1:10)*0.01)
+```
+
+
+```{r}
+set.seed(42)
+(m3 <- train(as.numeric(days_until_next) ~ ., 
+            data = train_df, 
+            method = "rpart", 
+            trControl = myControl, 
+            tuneGrid = cp.grid
+             )
+ )
+```
+
+
+```{r}
+rpart.plot(m3$finalModel, type = 3, digits = 3, fallen.leaves = TRUE)
+```
+
+### 3.4 Linear Regression Model with all predictors
+
+```{r}
+(m4 <- train(
+  as.numeric(days_until_next) ~ .,
+  data = train_df,
+  method = "glm"))
+```
+
+
+### 3.5 Discretizing the Response based on the three modes in distribution of 'days_until_next'
+
+```{r}
+train_df %>% 
+ggplot(aes(x = as.numeric(days_until_next))) + 
+  geom_density() +
+  scale_x_continuous(breaks = seq(0, 900, 50)) +
+  xlab("days until next inspection")
+```
+
+We will bin the response variable according to the 3 humps in the distribution. The boundaries will be 100 and 300. We will train a decision tree using 10-fold cross validation:
+
+```{r}
+set.seed(3333)
+
+(m5 <- train_df %>% mutate(days_until_next = case_when(
+  between(as.numeric(days_until_next), 0, 100) ~ "within the next 2 to 3 months",
+  between(as.numeric(days_until_next), 101, 300) ~ "within the next 10 months",
+  TRUE ~ "in more than 10 months"),
+  days_until_next = as.factor(days_until_next)) %>% 
+    train(days_until_next ~ ., 
+          data = ., 
+          method = "rpart", 
+          trControl = myControl, 
+          tuneGrid = cp.grid)
+)
+```
+
+```{r}
+rpart.plot(m5$finalModel, type = 3, digits = 3, fallen.leaves = TRUE)
+```
+
+Let  us try a different binning of the target: 
+
+```{r}
+set.seed(3333)
+
+cp.grid <- expand.grid(.cp = (1:50)*0.01)
+
+(m6 <- train_df %>% mutate(days_until_next = case_when(
+  between(as.numeric(days_until_next), 0, 40) ~ "within next 40 days",
+  between(as.numeric(days_until_next), 41, 190) ~ "within next 6 months",
+  between(as.numeric(days_until_next), 191, 320) ~ "within next 6 to 10 months",
+  TRUE ~ "in more than 10 months"),
+  days_until_next = as.factor(days_until_next)) %>% 
+    train(days_until_next ~ ., 
+          data = ., 
+          method = "rpart", 
+          trControl = myControl, 
+          tuneGrid = cp.grid)
+)
+```
 
 
 
