@@ -106,7 +106,7 @@ clean_data_df <- function ( file_name ) {
 
 ## Generate feature set: 
  
-make_feature_set <- function(df_raw) {
+make_feature_set <- function ( df_raw, is_train ) {
   
   make_df_GradeInspecScoreCuisine <- function(df) {
     

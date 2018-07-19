@@ -4,9 +4,9 @@
 # Construct feature set for prediction
 
 
-make_df_pred <- function ( id, filename ) {
+make_df_pred <- function ( id ) {
   
-  make_feature_set ( file_name = filename, is_train = FALSE ) %>% 
+  clean_data_df("New_York_City_Restaurants.xlsx") %>% make_feature_set( is_train = FALSE ) %>% 
     
     filter ( id == id ) %>% 
     
@@ -16,9 +16,9 @@ make_df_pred <- function ( id, filename ) {
 
 
 
-pred_function <- function ( model_type = "Classification tree", id, filename ) {
+pred_function <- function ( model_type = "Classification tree", id ) {
   
-  df <- make_df_pred ( id = id, filename = filename )
+  df <- make_df_pred ( id = id )
   
   if ( model_type == "Classification tree" ) {
     

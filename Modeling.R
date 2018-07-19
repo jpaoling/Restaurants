@@ -2,7 +2,7 @@
 ## Modeling
 
 # Create feature set:
-df_features <- clean_data_df("New_York_City_Restaurants.xlsx") %>% make_feature_set()
+df_features <- clean_data_df("New_York_City_Restaurants.xlsx") %>% make_feature_set ( is_train = TRUE )
 
 # Split into training and test set:
 set.seed(1)
