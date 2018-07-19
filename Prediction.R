@@ -8,7 +8,9 @@ make_df_pred <- function ( id, filename ) {
   
   make_feature_set ( file_name = filename, is_train = FALSE ) %>% 
     
-    filter ( id == id & inspection_date == max ( inspection_date ) )
+    filter ( id == id ) %>% 
+    
+    filter ( inspection_date == max ( inspection_date ) )
   
 }
 
@@ -16,7 +18,7 @@ make_df_pred <- function ( id, filename ) {
 
 pred_function <- function ( model_type = "Classification tree", id, filename ) {
   
-  df <- make_df_pred ( id, filename )
+  df <- make_df_pred ( id = id, filename = filename )
   
   if ( model_type == "Classification tree" ) {
     
