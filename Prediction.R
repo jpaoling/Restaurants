@@ -4,45 +4,14 @@
 # Construct feature set for prediction
 
 
-make_df_pred <- function ( id ) {
+make_df_pred <- function ( id_nr ) {
   
-  clean_data_df("New_York_City_Restaurants.xlsx") %>% make_feature_set( is_train = FALSE ) %>% 
+  clean_data_df ( "New_York_City_Restaurants.xlsx" ) %>% make_feature_set ( is_train = FALSE ) %>%
     
-    filter ( id == id ) %>% 
+    impute_features() %>% 
+    
+    filter ( id == id_nr ) %>% 
     
     filter ( inspection_date == max ( inspection_date ) )
   
 }
-
-
-
-pred_function <- function ( model_type = "Classification tree", id ) {
-  
-  df <- make_df_pred ( id = id )
-  
-  if ( model_type == "Classification tree" ) {
-    
-    model <- readRDS ( "class_tree_model.rds" )
-    
-  } else if ( model_type == "Regression tree" ) {
-    
-    model <- readRDS ( "reg_tree_model.rds" )
-    
-  } else {
-    
-    model <- readRDS ( "lin_reg_model.rds" )
-    
-  }
-    
-  predict ( model, df )
-  
-}
-  
-  
-  
-
-  
-  
- 
-  
-
