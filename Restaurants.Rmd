@@ -108,12 +108,6 @@ restaurants_raw <- restaurants_raw %>%
 ```
 
 
-(Furthermore, we will restrict our analysis to inspections that occured before 2017:)
-
-```{r}
-# restaurants_raw <- restaurants_raw %>%
-  # filter("2011-06-01" <= inspection_date, inspection_date < "2017-02-03")
-```
 
 ### 2.2 Cuisine description
 
@@ -141,7 +135,7 @@ restaurants_raw %>%
   ungroup() %>% 
   ggplot(aes(x = reorder(cuisine_descr, -n), y = n)) +
   geom_bar(stat = "identity") + 
-  theme(axis.text.x = element_text(angle=60, hjust=1))
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
 ```
 
 
@@ -337,7 +331,7 @@ restaurants_raw %>%
   arrange(desc(n))
 ```
 
-For later purposes, we contruct a dummy variable for the category 'InitialInspection'.
+For later purposes, we construct a dummy variable for the category 'InitialInspection'.
 
 ```{r}
 restaurants_raw$dummy_InitialInspection <- 
@@ -535,16 +529,16 @@ The distribution of the target seems reasonably similar across training and test
 train_df <- restaurants_raw %>% 
   filter(id %in% train_ids)
 # Test data
-test_df <- restaurants_raw %>% 
-  filter(id %in% test_ids) 
+test_df <- restaurants_raw %>%
+  filter(id %in% test_ids)
 ```
 
 
 So now, we remove the original data set and test data from the workspace and save the latter to a file:
 
 ```{r}
-write.csv(test_df, "test_restaurants.csv")
-rm(restaurants_raw)
+# write.csv(test_df, "test_restaurants.csv")
+# rm(restaurants_raw)
 ```
 
 
@@ -570,12 +564,12 @@ make_df_InitScoreGradeDaysCuisine <- function(df) {
 make_df_sumViolFlags <- function(df) {
   df %>% 
     select(id, inspection_date, starts_with("viol_"), starts_with("critical")) %>% 
-  mutate(critical_flag = case_when( critical_flag == "Critical" ~ 1, 
+    mutate(critical_flag = case_when( critical_flag == "Critical" ~ 1, 
                                     TRUE ~ 0 )) %>% 
-  group_by(id, inspection_date) %>% 
-  arrange(id, inspection_date) %>% 
-  summarise_at(vars(starts_with("viol"), starts_with("critical")), ~ sum(., na.rm = TRUE)) %>% 
-  ungroup()
+    group_by(id, inspection_date) %>% 
+    arrange(id, inspection_date) %>% 
+    summarise_at(vars(starts_with("viol"), starts_with("critical")), ~ sum(., na.rm = TRUE)) %>% 
+    ungroup()
 }
 
 make_df <- function(df) {

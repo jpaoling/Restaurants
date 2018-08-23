@@ -21,7 +21,7 @@ df_features <- make_feature_set(df_clean, is_train = TRUE) %>% impute_features()
 df_train <- df_features %>% filter(id %in% train_ids)
 df_test <- df_features %>% filter(id %in% test_ids)
 write.csv(df_test, "test_restaurants.csv")
-rm(df_test)
+
 
 
 # Set hyperparameters for cross-validated classification and regression tree
@@ -46,7 +46,6 @@ set.seed(3333)
 )
 rpart.plot ( class_tree_model$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )
 saveRDS ( class_tree_model, "class_tree_model.rds" )
-rm(class_tree_model)
 
 
 # Model 2: Regression tree
@@ -67,6 +66,11 @@ saveRDS ( reg_tree_model, "reg_tree_model.rds" )
           data = .,
           method = "lm"))
 saveRDS ( lin_reg_model, "lin_reg_model.rds" )
+
+# Validation Model 2
+
+
+# Validation Model 3
 
 
 # Evaluate final model on training data: 

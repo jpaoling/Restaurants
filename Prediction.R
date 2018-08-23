@@ -15,3 +15,12 @@ make_df_pred <- function ( id_nr ) {
     filter ( inspection_date == max ( inspection_date ) )
   
 }
+
+
+pred_nxt <- make_df_pred(30191841) %>% 
+  predict(class_tree_model, .) %>% 
+  as.character()
+
+
+pred_nxt %>% str_c("Next inspection ", ., ".")
+  
