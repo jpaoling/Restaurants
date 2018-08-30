@@ -11,7 +11,7 @@ library(rpart.plot)
 clean_data_df <- function ( file_name ) {
   
   # Read in data set
-  suppressWarnings ( df_raw <- read_excel(file_name) )
+  suppressWarnings ( df_raw <- read_excel( file_name ) )
 
   # Rename variables
   new_names <- c("id", "rest_name", "boro", "building", "street", "zipcode", 

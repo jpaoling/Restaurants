@@ -1,6 +1,6 @@
 
 # Shiny app 
-
+readRDS("class_tree_model.rds")
 library(shiny)
 
 # Define UI for application that predicts the next inspection

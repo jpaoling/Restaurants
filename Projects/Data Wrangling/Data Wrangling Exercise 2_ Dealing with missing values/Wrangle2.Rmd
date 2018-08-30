@@ -1,0 +1,78 @@
+---
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+title: "Project: Data Wrangling Exercise 2: Dealing with missing values"
+---
+
+```{r setup}
+library(tidyverse)
+```
+
+
+## 0. Load the data in RStudio
+```{r}
+library(readxl)
+
+df <- read_excel("titanic3.xls")
+write.csv(df, "titanic_original.csv")
+```
+
+## 1. Port of embarkation
+```{r}
+head(df)
+df$embarked[is.na(df$embarked)] <- "S"
+unique(df$embarked)
+```
+
+## 2. Age
+
+1. Calculate the mean of the Age column and use that value to populate the missing values:
+```{r}
+avg_age <- df %>% 
+  filter(!is.na(age)) %>% 
+  summarize(avg_age = mean(age)) %>% 
+  .$avg_age
+
+sum(is.na(df$age))
+
+df <- df %>% 
+  mutate(age = ifelse(is.na(age), avg_age, age))
+```
+
+2. An alternative way would be to populate the missing values with the median age. Another would be to use domain knowledge to get a more accurate representation of the missing values. Perhaps there is a systematic relationship between certain characteristics of a person and whether age is recorded or not, and maybe these characteristics are in turn related to age...
+
+
+## 3. Lifeboat
+
+```{r}
+unique(df$boat)
+sum(is.na(df$boat))
+
+df <- df %>% 
+  mutate(boat = ifelse(is.na(boat), "None", boat))
+```
+
+
+## 4. Cabin
+
+A missing cabin number could mean that a passenger simply did not have a cabin. This could be because they simply could not afford one. If that were the case, then it would not make sense to fill missing cabin numbers with NAs. Furthermore, the chance of survival may be higher for richer passengers. Thus, it could be useful to create an indicator for whether a passenger has a cabin number
+
+```{r}
+head(df$cabin)
+sum(is.na(df$cabin))
+
+df <- df %>% 
+  mutate(has_cabin_number = ifelse(!is.na(cabin), 1, 0))
+```
+
+## 5. Write clean data frame to file
+
+```{r}
+write.csv(df, "titanic_clean.csv")
+```
+
+
+
+

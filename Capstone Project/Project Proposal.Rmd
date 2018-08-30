@@ -1,0 +1,24 @@
+---
+title: "Project Proposal: Restaurant Inspections in NYC"
+output: html_notebook
+---
+
+### 1. Problem 
+
+I have decided to use data on inspections of restaurants in New York City to predict the outcome of an inspection using restaurant characteristics.
+
+### 2. Client
+
+The potential client is the Department of Health and Mental Hygiene (DOHMH) in New York City. An accurate predictive model of the outcome of a restaurant inspection would allow the institution to focus their resources on the inspection of a smaller subset of establishments, namely those that have lower predicted grade.
+
+### 3. Data
+
+The DOHMH openly provides data on restaurant inspections. These include information on the restaurant, such as cuisine type, location, type of inspection and grade.
+
+### 4. Approach
+
+I will try to build a model to predict the outcome of an inspection, based on the eating establishment's characteristics.
+
+### 5. Deliverables
+
+The final product includes code, along with a slide deck.

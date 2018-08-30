@@ -1,0 +1,81 @@
+---
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+title: ""
+---
+  
+
+```{r setup}
+library(tidyverse)
+```
+
+
+## 0. Load the data in RStudio
+```{r}
+df <- read.csv("refine_original.csv", stringsAsFactors = FALSE)
+
+df <- df %>% 
+  rename(company = ï..company, product_code = Product.code...number)
+glimpse(df)
+```
+
+## 1. Clean up brand names
+```{r}
+unique(df$company)
+
+df$company[endsWith(tolower(df$company), "ps")] <- "philips" 
+df$company[startsWith(tolower(df$company), "ak")] <- "akzo"
+df$company[startsWith(tolower(df$company), "van")] <- "van houten"
+df$company[startsWith(tolower(df$company), "un")] <- "unilever"
+
+unique(df$company)
+```
+
+
+## 2. Separate product code and number
+```{r}
+df <- df %>% 
+  separate(product_code, into = c("product", "code"))
+
+glimpse(df)
+```
+
+## 3. Add product categories
+```{r}
+lookup <- c(p = "Smartphone", v = "TV", x = "Laptop", q = "Tablet")
+df <- df %>% 
+  mutate(category = unname(lookup[product]))
+
+glimpse(df)
+```
+
+## 4. Add full address for geocoding
+```{r}
+df <- df %>% 
+  unite(full_address, address, city, country, sep = ", ")
+
+glimpse(df)
+```
+
+## 5. Create dummy variables for company and product category
+```{r}
+df <- df %>% 
+  mutate(company_philips = ifelse(company == "philips", 1, 0),
+         company_akzo = ifelse(company == "akzo", 1, 0),
+         company_van_houten = ifelse(company == "van houten", 1, 0),
+         company_unilever = ifelse(company == "unilever", 1, 0),
+         product_smartphone = ifelse(category == "Smartphone", 1, 0),
+         product_tv = ifelse(category == "TV", 1, 0),
+         product_laptop = ifelse(category == "Laptop", 1, 0),
+         product_tablet = ifelse(category == "Tablet", 1, 0))
+
+glimpse(df)
+```
+
+## 6. Write cleaned up data frame to file
+```{r}
+write_csv(df, "refine_clean.csv")
+```
+

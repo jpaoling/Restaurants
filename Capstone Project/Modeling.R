@@ -3,6 +3,8 @@
 # Data set at https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j
 # Save as "New_York_City_Restaurants.xlsx" in working directory
 
+# hier zur API
+
 # Load packages to be used:
 library(caret) 
 library(e1071)
