@@ -1,0 +1,153 @@
+---
+title: "Data Wrangling Report"
+output: html_document
+---
+
+### Data Wrangling Report
+
+
+```{r}
+# Rename variables
+new_names <- c("id", "rest_name", "boro", "building", "street", "zipcode", 
+               "phone", "cuisine_descr", "inspection_date", "action", 
+               "violation_code", "violation_descr", "critical_flag", 
+               "score", "grade", "grade_date", "record_date", 
+               "inspection_type")
+names(df_raw) <- new_names
+rm(new_names)
+```
+
+  
+
+```{r}
+# Inspection date: Ignore values "1900-01_01"
+df_raw$inspection_date <- ymd(df_raw$inspection_date) 
+df_raw <- df_raw %>% 
+  filter(!inspection_date == "1900-01-01")
+```
+
+
+```{r}
+# Cuisine_description: Relabel level "CafÃƒÂ©/Coffee/Tea" which is at position 14 in levels vector
+  cuis_ind <- levels(df_raw$cuisine_descr) == levels(df_raw$cuisine_descr)[14]
+  levels(df_raw$cuisine_descr)[cuis_ind] <- "Coffee_Tea"
+```
+
+
+```{r}
+# Cuisine_description: Relabel level "Latin (..." into "Latin"
+  levels(df_raw$cuisine_descr)[levels(df_raw$cuisine_descr) == 
+                                 "Latin (Cuban, Dominican, Puerto Rican, South & Central American)"] <- "Latin"
+```
+
+
+```{r}
+# Cuisine_description: new bins - top 20 most frequent categories remain 
+df_raw <- df_raw %>% 
+    mutate(cuisine_descr = fct_lump(f = cuisine_descr, n = 20))
+```
+
+
+```{r}
+# Boro: Recoding of missing values:
+df_raw$boro <- as.factor(df_raw$boro)
+  levels(df_raw$boro)[levels(df_raw$boro) == "Missing"] <- NA
+  summary(df_raw$boro)
+```
+
+
+```{r}
+# Acions taken: convert into a factor and (re)name its levels
+df_raw$action <- as.factor(df_raw$action)
+  levels(df_raw$action) <- c("Closed", "ReClosed", "ReOpened", "NoViol", "YesViol")
+  summary(df_raw$action)
+```
+
+
+```{r}
+# Violation types: new variable violation_group
+df_raw$violation_code <- as.factor(df_raw$violation_code)
+  df_raw <- 
+    df_raw %>% 
+    mutate(violation_group = case_when(
+      violation_code %in% str_c("02", LETTERS[1:10]) ~ "food_temperature",
+      violation_code %in% c(str_c("03", LETTERS[1:7]), str_c("09", LETTERS[1:3])) ~ "food_source",
+      violation_code %in% str_c("04", LETTERS[1:10]) ~ "food_protection",
+      violation_code %in% c(str_c("05", LETTERS[1:9]), str_c("10", LETTERS[1:10])) ~ "facility",
+      violation_code %in% str_c("06", LETTERS[1:9]) ~ "hygiene",
+      violation_code %in% str_c("04", LETTERS[11:15]) ~ "vermin",
+      violation_code %in% c("07A", "99B") ~ "other_scored",
+      !is.na(violation_code) ~ "not_scored"
+    )
+    )
+```
+
+  
+```{r}
+# Indicator variable for violation group
+for(level in unique(df_raw$violation_group)){
+    if (is.na(level)) {
+      next
+    } else {
+      df_raw[paste("viol", level, sep = "_")] <- 
+        ifelse(df_raw$violation_group == level, 1, 0)
+    }
+  }
+
+  
+```
+
+```{r}
+# Inspection type: collapse into fewer categories
+  df_raw$inspection_type2 <-  df_raw %>% 
+    select(inspection_type) %>% 
+    separate(inspection_type, into = c("before_slash", "after_slash"), sep = " / ") %>% 
+    transmute(after_slash = str_replace_all(after_slash, fixed(" "), fixed(""))) %>% 
+    transmute(inspection_type2 = str_replace_all(after_slash, fixed("-i"), fixed("I"))) %>% 
+    .$inspection_type2
+```
+
+```{r}
+# Indicator variable for level 'Initial Inspection'
+  df_raw$dummy_InitialInspection <- 
+    as.factor(ifelse(df_raw$inspection_type2 == "InitialInspection", "Initial", "Not_Initial"))
+```
+
+```{r}
+# Grade: Recode NA's with inspection type = 'InitialInspection' and 'score' > 14 to "Not Yet Graded"
+  df_raw <- df_raw %>%
+    mutate(grade = case_when(
+      is.na(.$grade) &
+        .$inspection_type2 == "InitialInspection" &
+        .$score > 14 ~ "Not Yet Graded",
+      TRUE ~ grade
+    ))
+```
+
+
+```{r}
+# convert into factor:
+  df_raw <- df_raw %>% 
+    mutate(grade = as.factor(grade))
+```
+
+
+```{r}
+# Save clean data frame to RDS file
+saveRDS(df_raw, "df_raw.rds")
+```
+
+
+
+
+  
+  
+
+
+  
+  
+  
+  
+  
+  
+
