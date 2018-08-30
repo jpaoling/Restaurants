@@ -24,7 +24,7 @@ ui <- fluidPage(
    )
 )
 
-# Define server logic required to draw a histogram
+# Define server logic required to predict next inspection
 server <- function(input, output) {
    
    output$text <- renderPrint({

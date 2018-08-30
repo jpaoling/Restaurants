@@ -20,3 +20,4 @@ mehrblabla.R
 class_tree_model.rds
 lin_reg_model.rds
 reg_tree_model.rds
+feed_data.csv
