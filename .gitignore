@@ -21,3 +21,6 @@ class_tree_model.rds
 lin_reg_model.rds
 reg_tree_model.rds
 feed_data.csv
+training_data_Notebook.rds
+Capstone_Final_Report.Rmd
+Capstone_Final_Report.nb.html

@@ -15,9 +15,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## 1. Introduction
 
-In this data analysis project, I will try to use data on restaurant inspections to predict the number of days until the next inspection.
+In this data analysis project, I will use data on restaurant inspections to predict the number of days until the next inspection occurs, for a given restaurant.
 
-The data set I use contains information on restaurant inspections in New York City carried out by the Department of Health and Hygiene (DOHMH) between 2010 and 2017. The data set contains the following variables:
+The data set contains information on restaurant inspections in New York City carried out by the Department of Health and Hygiene (DOHMH) between 2010 and 2017. It contains the following variables:
 
 * CAMIS: a unique identifier for the restaurant
 
@@ -63,7 +63,7 @@ We read in the data:
 
 For convenience, we rename the variables. 
 
-```{r}
+```{r echo=FALSE}
 new_names <- c("id", "rest_name", "boro", "building", "street", "zipcode", 
                "phone", "cuisine_descr", "inspection_date", "action", 
                "violation_code", "violation_descr", "critical_flag", 
@@ -85,24 +85,16 @@ restaurants_raw$inspection_date <- ymd(restaurants_raw$inspection_date)
 summary(restaurants_raw$inspection_date)
 ```
 
-Apparently, there are some obeservations with an inspection date of "1900-01-01". Of course, these are wrong values. Let us look at these observations, in particular at the variables that relate to the grade of an inspection.
+Apparently, there are some observations with an inspection date of "1900-01-01". Of course, these are wrong values. On closer inspection we see that values across all the variables relating to grading are missing for those observations
 
-```{r}
-restaurants_raw %>% 
-  filter(inspection_date == "1900-01-01") %>% 
-  select(action:inspection_type)
-```
-
-Values of all observations across all the variables relating to grading are missing. 
-
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   summarise(na_inspectionDate = round((sum(inspection_date == "1900-01-01")/n()), 4))
 ```
 
-Those obervations amount to .03 % of all observations. For now, we will ignore those observations. 
+Those obervations amount to .03 % of all observations. For convenience, we will ignore them. 
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw <- restaurants_raw %>% 
   filter(!inspection_date == "1900-01-01")
 ```
@@ -118,10 +110,10 @@ restaurants_raw$cuisine_descr <- as.factor(restaurants_raw$cuisine_descr)
 cuis_ind <- levels(restaurants_raw$cuisine_descr) == levels(restaurants_raw$cuisine_descr)[14]
 levels(restaurants_raw$cuisine_descr)[cuis_ind] <- "Coffee_Tea"
 
-# Relabel level "Latin (..." into "Latin"
+# Relabel level "Latin (..." to "Latin"
 levels(restaurants_raw$cuisine_descr)[levels(restaurants_raw$cuisine_descr) == "Latin (Cuban, Dominican, Puerto Rican, South & Central American)"] <- "Latin"
 
-# Lump together
+# Lump together the least common categories, keeping the 20 most frequent.
 restaurants_raw <- restaurants_raw %>% 
   mutate(cuisine_descr = fct_lump(f = cuisine_descr, n = 20))
 ```
@@ -135,9 +127,11 @@ restaurants_raw %>%
   ungroup() %>% 
   ggplot(aes(x = reorder(cuisine_descr, -n), y = n)) +
   geom_bar(stat = "identity") + 
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+  xlab("Cuisine")
 ```
 
+The most frequent cuisines are those labelled 'American', 'Other' and 'Chinese'. 
 
 
 ### 2.3 Boros
@@ -159,12 +153,14 @@ restaurants_raw %>%
   theme(axis.text.x = element_text(angle=60, hjust=1))
 ```
 
-Most observations are from Manhattan.
+Most of the eating establishments are located in Manhattan, followed by Brooklyn and Queens.
 
 
 ### 2.4 Actions taken
 
-```{r}
+Next, we look at the variable 'actions taken'. The variable takes on the following values:
+
+```{r echo=FALSE}
 levels(as.factor(restaurants_raw$action))
 ```
 
@@ -176,9 +172,10 @@ levels(restaurants_raw$action) <- c("Closed", "ReClosed", "ReOpened", "NoViol", 
 summary(restaurants_raw$action)
 ```
 
+Now we can see what the most frequent categories are:
 
 
-```{r}
+```{r echo=FALSE}
 (action_df <- restaurants_raw %>% 
   group_by(action) %>% 
   summarise(n = n()) %>% 
@@ -190,16 +187,15 @@ action_df %>%
   xlab("Action taken by DOHMH") 
 ```
 
-In the vast majority of inspections violations were cited. Among these, a very small number leads to restaurant closures. 
+The most frequent category is 'YesViol'.  
 
 
 ### 2.5 Violation types
 
-Next, we will consider the different types of violations recorded.
+Next, we will consider the different types of violations recorded. The most common violation codes are listed below:
 
 ```{r}
 restaurants_raw$violation_code <- as.factor(restaurants_raw$violation_code)
-
 restaurants_raw %>% 
   group_by(violation_code) %>% 
   summarise(number = n()) %>% 
@@ -291,7 +287,7 @@ restaurants_raw %>%
 
 These are the values:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(inspection_type) %>% 
   summarise()
@@ -299,7 +295,7 @@ restaurants_raw %>%
 
 We collapse these values into a smaller range:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw$inspection_type2 <-  restaurants_raw %>% 
   select(inspection_type) %>% 
   separate(inspection_type, into = c("before_slash", "after_slash"), sep = " / ") %>% 
@@ -310,9 +306,9 @@ restaurants_raw$inspection_type2 <-  restaurants_raw %>%
 unique(restaurants_raw$inspection_type2)
 ```
 
-Here a display of the distribution:
+Here is a display of the distribution:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(inspection_type2) %>% 
   summarise(n = n()) %>% 
@@ -324,7 +320,7 @@ restaurants_raw %>%
 
 Again, there a are categories that are 'almost empty'. The vast majority of observations are initial and re-inspections:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(inspection_type2) %>% 
   summarise(n = n(), prop = round(n/nrow(restaurants_raw), 5)) %>% 
@@ -333,7 +329,7 @@ restaurants_raw %>%
 
 For later purposes, we construct a dummy variable for the category 'InitialInspection'.
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw$dummy_InitialInspection <- 
   as.factor(ifelse(restaurants_raw$inspection_type2 == "InitialInspection", "Initial", "Not_Initial"))
 names(restaurants_raw)
@@ -342,7 +338,9 @@ names(restaurants_raw)
 
 ### 2.7 Grade
 
-```{r}
+Now on to 'grade'.
+
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(grade) %>% 
   summarise(n = n()) %>% 
@@ -359,9 +357,9 @@ restaurants_raw %>%
   summarise(n = n())
 ```
 
-So about 73 % of the missing values are due to a score of 14 or higher. Furthermore, out of the 1915 observations with value ‘Not yet graded’, 1548 are the result of a high score (above 13) in the initial inspection. We will recode these NA’s to “Not Yet Graded” to reduce the number of missing values for ‘grade’.
+So about 73 % of the missing values are due to a score of 14 or higher. Furthermore, out of the 1915 observations with value ‘Not yet graded’, 1548 are the result of a high score (above 13) in the initial inspection. We will recode these NA’s to “Not Yet Graded” to reduce the number of missing values for ‘grade’. This reduces the number of NA's significantly:
 
-```{r}
+```{r echo=FALSE}
 # Recode NA's with inspection type = 'InitialInspection' and 'score' > 14 to "Not Yet Graded":
 restaurants_raw <- restaurants_raw %>%
   mutate(grade = case_when(
@@ -372,7 +370,6 @@ restaurants_raw <- restaurants_raw %>%
   ))
 ```
 
-We have reduced the number of NA's significantly:
 
 ```{r}
 restaurants_raw %>% 
@@ -382,7 +379,7 @@ restaurants_raw %>%
 
 Here is the distribution of the proportion of inspections with an NA for grade per restaurant:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(id, inspection_date) %>% 
   summarise(prop_gradeNA = mean(is.na(grade))) %>% 
@@ -391,9 +388,9 @@ restaurants_raw %>%
   xlab("proportion of NA's for inspection grade per restaurant")
 ```
 
-It seems that for most restaurants there is no inspection with a missing value for  On the other hand, there are some restaurants for whom all values for grade are NA.
+It seems that for most restaurants there is no inspection with a missing value for grade. On the other hand, there are some restaurants for whom all values for grade are NA.
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(id, inspection_date) %>% 
   summarise(prop_gradeNA = round(mean(is.na(grade)), 3)) %>% 
@@ -404,31 +401,13 @@ restaurants_raw %>%
 ```
 
 
-As we did before, we are going to construct dummy variables, this time for the different levels of grade. We'll use "Z" as base level: 
-
-```{r}
-temp_index <- restaurants_raw$grade == "Not Yet Graded"
-restaurants_raw$grade[temp_index] <- "NotYetGraded"
-rm(temp_index)
-for(level in unique(restaurants_raw$grade)){
-  
-  if (is.na(level) | level == "Z") {
-    next
-  } else {
-    restaurants_raw[paste("grade", level, sep = "_")] <- 
-      ifelse(restaurants_raw$grade == level, 1, 0)
-  }
-  
-}
-
-rm(level)
-names(restaurants_raw)
-```
+It would be worth to further investigate the nature of the NA's related grade, something which will not pursue any further at this point. For later purposes, we convert 'grade' into a factor:
 
 ```{r}
 restaurants_raw <- restaurants_raw %>% 
   mutate(grade = as.factor(grade))
 ```
+
 
 
 ### 2.8 Score
@@ -443,7 +422,7 @@ summary(restaurants_raw$score)
 
 There are 19514 NA’s. So let us look at the proportion of inspections that exhibit an NA for 'score'. 
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(id, inspection_date) %>% 
   summarise(n_na = sum(is.na(score))) %>% 
@@ -456,7 +435,7 @@ restaurants_raw %>%
 
 We know that there are 16530 observations that refer to violations that are not scored:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   group_by(violation_group) %>% 
   summarise(n = n()) %>% 
@@ -465,7 +444,8 @@ restaurants_raw %>%
 
 
 These observations are expected to have NA for ‘score’:
-```{r}
+
+```{r echo=FALSE}
 restaurants_raw %>% 
   select(violation_group, score) %>% 
   filter(violation_group == "not_scored") %>% 
@@ -474,7 +454,7 @@ restaurants_raw %>%
 
 Hence, these observations account for 82 % of all of the 19514 NA’s for ‘score’. What about the remaining 3428 missing values for ‘score’? Let us consider the relationship with violation group:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>%
   select(violation_group, score) %>%
   filter(is.na(violation_group)) %>%
@@ -483,14 +463,16 @@ restaurants_raw %>%
 
 Hence, the rest of the NA’s for score are associated with NA’s on ‘violation_group’. So let us turn to the NA’s for the variable ‘violation_group’. One cause for an NA here may be that on a given inspection, there was no violation at all. So what is the number of NA's for violation group among observations that do not exhibit a violation?
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% filter(action == "NoViol") %>% 
   summarise(viol_group_NA = sum(is.na(violation_group)))
 ```
 
 
 
-## 3. Predicting the number of days until the next inspection
+## 3. Predicting time until the next inspection
+
+Finally, we now return to the question posed in the beginning, namely, whether it is possible to predict the number of days until the next inspection, using features of the data, described above. 
 
 
 ### 3.1 Split into training and test data
@@ -505,7 +487,7 @@ test_ids <- setdiff(unique(restaurants_raw$id), train_ids)
 
 Next, let us see if the distributions of the target feature in training and test data are similar:
 
-```{r}
+```{r echo=FALSE}
 restaurants_raw %>% 
   select(id, inspection_date) %>% 
   group_by(id, inspection_date) %>% 
@@ -521,170 +503,229 @@ restaurants_raw %>%
   facet_grid(. ~ group) 
 ```
 
-The distribution of the target seems reasonably similar across training and test data. Now, we'll split the data set into training and test data:
+The distribution of the target seems reasonably similar across training and test data. 
 
 
-```{r}
-# Training data
-train_df <- restaurants_raw %>% 
-  filter(id %in% train_ids)
-# Test data
-test_df <- restaurants_raw %>%
-  filter(id %in% test_ids)
-```
 
+### 3.2 Features
 
-So now, we remove the original data set and test data from the workspace and save the latter to a file:
+In the following we will use regression trees to predict the number of days until the next inspection, using the score and grade on the last inspection, the type of cuisine and number of violations in the different violation groups on the last inspection. Furthermore, we will impute missing values for score and grade using regression trees, including only those observations for which the respective values are not missing. 
 
-```{r}
-# write.csv(test_df, "test_restaurants.csv")
-# rm(restaurants_raw)
-```
-
-
-### 3.2 Features and response
-
-In the following we will use regression trees to predict the number of days until the next inspection, using the score and grade on the last inspection, and number of violations in the respective violation groups on the last inspection.
-
-```{r}
+```{r echo=FALSE}
 ## Create data set with features for inspection type, score, grade and number of violations:
+make_feature_set <- function ( df_raw, is_train ) {
+  
+  make_df_GradeInspecScoreCuisine <- function ( df ) {
+    
+    df %>% 
+      select ( id, inspection_date, dummy_InitialInspection, score, 
+               grade, cuisine_descr ) %>% 
+      group_by( id, inspection_date ) %>% 
+      arrange ( id, inspection_date ) %>% 
+      summarise_at ( vars(c("grade","dummy_InitialInspection", "score", "cuisine_descr")), 
+                     .funs = list(first) ) 
 
-make_df_InitScoreGradeDaysCuisine <- function(df) {
-  df %>% 
-    select(id, inspection_date, dummy_InitialInspection, score, 
-           grade, cuisine_descr) %>% 
-    group_by(id, inspection_date) %>% 
-    arrange(id, inspection_date) %>% 
-    summarise_at(vars(c("grade","dummy_InitialInspection", "score", "cuisine_descr")), 
-                 .funs = list(first)) %>% 
-    mutate(days_until_next = lead(inspection_date) - inspection_date) %>%
-    ungroup()
+  }
+  
+  make_df_sumViolFlags <- function(df) {
+    
+    df %>% 
+      select ( id, inspection_date, starts_with("viol_"), starts_with("critical") ) %>% 
+      mutate( critical_flag = case_when( critical_flag == "Critical" ~ 1, 
+                                         TRUE ~ 0 ) ) %>% 
+      group_by ( id, inspection_date ) %>% 
+      arrange ( id, inspection_date ) %>% 
+      summarise_at ( vars(starts_with( "viol" ), starts_with( "critical" ) ), ~ sum( ., na.rm = TRUE ) ) 
+
+  }
+  
+  make_df <- function(df) {
+    
+    left_join ( make_df_GradeInspecScoreCuisine ( df ) , make_df_sumViolFlags ( df ) ,
+               by = c ( "id", "inspection_date" ) )
+
+  }
+  
+  # Data set with features and response
+  if ( is_train ) {
+    
+    df_features <- make_df ( df_raw ) %>% 
+      mutate ( days_until_next = lead ( inspection_date ) - inspection_date ) %>% 
+      filter ( !is.na ( days_until_next ) ) %>% 
+      ungroup() %>% 
+      mutate ( days_until_next_categ = case_when (
+        between ( as.numeric ( days_until_next ), 0, 100 ) ~ "within 2 to 3 months",
+        between ( as.numeric ( days_until_next ), 101, 300 ) ~ "within 10 months",
+        TRUE ~ "in more than 10 months" ),
+        days_until_next_categ = as.factor ( days_until_next_categ ) ) 
+    
+    
+  } else {
+    
+    df_features <- make_df ( df_raw ) %>% ungroup()
+    
+  }
+  
+  df_features
+  
 }
 
-make_df_sumViolFlags <- function(df) {
-  df %>% 
-    select(id, inspection_date, starts_with("viol_"), starts_with("critical")) %>% 
-    mutate(critical_flag = case_when( critical_flag == "Critical" ~ 1, 
-                                    TRUE ~ 0 )) %>% 
-    group_by(id, inspection_date) %>% 
-    arrange(id, inspection_date) %>% 
-    summarise_at(vars(starts_with("viol"), starts_with("critical")), ~ sum(., na.rm = TRUE)) %>% 
-    ungroup()
-}
-
-make_df <- function(df) {
-    left_join( make_df_InitScoreGradeDaysCuisine(df) , make_df_sumViolFlags(df) ,
-              by = c("id", "inspection_date") ) %>% 
-    filter(!is.na(days_until_next)) %>% 
-    select(id, inspection_date, days_until_next, score, everything())
+# Impute missing values for score and grade:
+impute_features <- function ( df_features ) {
+  
+  scoreFit <- df_features %>%
+    filter ( !is.na ( score ) ) %>%
+    select ( score, grade, dummy_InitialInspection, cuisine_descr,
+           starts_with ( "viol_" ), critical_flag ) %>%
+    rpart ( score ~ ., data = ., method = "anova" )
+  df_features$score[is.na( df_features$score )] <-
+    predict(scoreFit, df_features[is.na(df_features$score), ])
+  
+  gradeFit <- df_features %>%
+    filter(!is.na(grade)) %>%
+    select(score, grade, dummy_InitialInspection, cuisine_descr,
+           starts_with("viol_"), critical_flag) %>%
+    rpart(grade ~ ., data = ., method = "class")
+  df_features$grade[is.na(df_features$grade)] <-
+    predict(gradeFit, df_features[is.na(df_features$grade), ], type = "class")
+  
+  
+  df_features
+  
 }
 ```
 
-
-
-
-### 3.3 First Model
 
 ```{r}
 library(rpart)
-library(rpart.plot)
-```
+df_features <- make_feature_set(restaurants_raw, is_train = TRUE) %>% impute_features()
 
-
-The first model will leave the NA's for 'score' as is. 
-
-
-```{r}
-(m1 <- rpart(days_until_next ~ ., 
-             data = train_df %>% make_df() %>% select(-id, -inspection_date), 
-             method = "anova" ))
-```
-
-
-```{r}
-rpart.plot(m1, type = 3, digits = 3, fallen.leaves = TRUE)
-```
-
-
-### 3.4 Second Model: Imputed NA's
-
-So far, so good. Let us now impute the missing values for score and grade by predicting those values using observations on all other variables where they are not missing. 
-
-First, we'll recombine training and test data:
-
-```{r}
-combi <- train_df %>% 
-  make_df() %>% 
-  bind_rows(make_df(test_df))
-```
-
-Then we impute the missing values for score and grade by fitting regression trees on the respective sets of non-missing observations: 
-
-```{r}
-map ( combi %>% select( -id, -inspection_date ), ~ sum ( is.na ( . ) ) )
-```
-
-
-```{r}
-# Score
-scoreFit <- combi %>% filter(!is.na(score)) %>% select(-id, -inspection_date, -days_until_next) %>%
-  rpart(score ~ ., data = ., method = "anova")
-combi$score[is.na(combi$score)] <- predict(scoreFit, combi[is.na(combi$score),])
-
-# Days_since_last
-# daysFit <- combi %>% filter(!is.na(days_since_last)) %>% select(-id, -inspection_date, -days_until_next) %>%   rpart(days_since_last ~ ., data = ., method = "anova")
-# combi$days_since_last[is.na(combi$days_since_last)] <-
-#   predict(daysFit, combi[is.na(combi$days_since_last),])
-
-# Grade
-gradeFit <- combi %>% filter(!is.na(grade)) %>% select(-id, -inspection_date, -days_until_next) %>%
-  rpart(grade ~ ., data = ., method = "class")
-combi$grade[is.na(combi$grade)] <- predict(gradeFit, combi[is.na(combi$grade),], type = "class")
-
-```
-
-Check that there are no missing values any more:
-
-```{r}
-map(combi %>% select(score, grade), ~ sum(is.na(.)))
-```
-
-Finally we split the data into training and test data again:
-
-```{r}
-train_df <- combi %>% 
-  filter(id %in% train_ids) %>% 
-  select(-id, -inspection_date)
-
-test_df <- combi %>%
-  filter(id %in% test_ids) %>% 
-  select(-id, -inspection_date)
-```
-
-
-So next, we'll fit a second model with imputed NA's:
-
-```{r}
-(m2 <- rpart(days_until_next ~ .,
-             data = train_df,
-             method = "anova"))
+df_features
 ```
 
 ```{r}
-rpart.plot(m2, type = 3, digits = 3, fallen.leaves = TRUE)
+df_train <- df_features %>% filter(id %in% train_ids)
+df_test <- df_features %>% filter(id %in% test_ids)
 ```
 
-### 3.5 Cross Validation
 
-Finally let's use cross validation to fit one final model:
+### 3.3 Feature Exploration
 
-```{r}
+Let us first explore a couple of bivariate relationships between the predictors and the target feature. We will begin with the relationship between grade and days until the next inspection
+
+```{r echo=FALSE}
+df_train %>%
+  ggplot ( aes ( x = grade, y = as.numeric ( days_until_next ) ) ) +
+  geom_boxplot ( fill = "grey") + 
+  geom_jitter(alpha = .1, width = .07) +
+  xlab("grade") +
+  ylab("days until next inspection")
+```
+
+As we can see, the median number of days until the next inspection decreases when moving from A to C. This is not suprising, since a good grade on the initial inspection reduces the likelihood of being subjected to a re-inspection the same inspection cycle.
+
+Let us move on to the relationship between violation types and the target feature:
+
+```{r echo=FALSE}
+g_vermin <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_vermin), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Vermin")
+
+g_not_scored <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_not_scored), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Not scored") 
+
+g_facility <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_facility), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Facility")
+
+g_food_temperature <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_food_temperature), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Food temperature")
+
+g_hygiene <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_hygiene), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Hygiene")
+
+g_food_protection <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_food_protection), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Food protection")
+
+g_food_source <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_food_source), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Food source")
+
+g_other_scored <- df_train %>% 
+  ggplot(aes(x = as.factor(viol_other_scored), y = as.numeric(days_until_next))) + 
+  geom_boxplot() +
+  xlab("Number of violations") +
+  ylab("Days until next inspection") +
+  ggtitle("Other scored")
+
+library(gridExtra)
+grid.arrange(g_vermin, g_facility, 
+             g_food_protection, g_food_source, g_food_temperature, 
+             g_hygiene, g_not_scored, g_other_scored, ncol = 3)
+```
+
+Here also, as expected, the median number of days until the next inspection decreases as the number of violations per inspection increases.
+
+### 3.4 Linear Regression model
+
+We start with a simple linear regression model, using all features.
+
+```{r echo=FALSE}
 library(caret)
-library(e1071)
+(lin_reg_model <- df_train %>% 
+    select(-days_until_next_categ, -id, -inspection_date) %>%
+    train(as.numeric(days_until_next) ~ .,
+          data = .,
+          method = "lm"))
 ```
 
+We see that the R squared associated with the model is 0.476, i.e., 47.6 percent of the variation in the data can be 'explained' in terms of the linear regression model. Let us look at the residual plot:
+
+```{r echo=FALSE}
+df_lin_reg <- data_frame(actual = as.numeric(df_train$days_until_next), 
+                         predicted = as.numeric(predict(lin_reg_model, df_train)), 
+                         residual = actual - predicted)
+
+df_lin_reg %>% 
+  ggplot(aes(x = predicted, y = residual)) +
+  geom_point() +
+  geom_smooth()
+```
+
+There are a few curious things to notice about the plot. First, apparently there is a set of restaurants for which the model predicts a negative duration until the next inspection, which does not make sense. Second, there seems to be some pattern in the residuals. In the presence of nonlinearities, the conclusions drawn from the fit are questionable. At this point, one could investigate how these patterns in the residuals come about. Instead, in the next section, we will fit a nonlinear regression model to the data. 
+
+
+### 3.5 Second Model: Regression tree
+
+So far, so good. Let us fit at a cross-validated regression tree model, using all the features. First, we set the hyperparameters:
 
 ```{r}
+# Set hyperparameters for cross-validated classification and regression tree
 set.seed(42)
 myControl <- trainControl(
   
@@ -692,89 +733,69 @@ myControl <- trainControl(
   number = 10
   
 )
-
 cp.grid <- expand.grid(.cp = (1:10)*0.01)
 ```
 
+Then we fit the model, employing 10-fold cross validation:
 
-```{r}
-set.seed(42)
-(m3 <- train(as.numeric(days_until_next) ~ ., 
-            data = train_df, 
-            method = "rpart", 
-            trControl = myControl, 
-            tuneGrid = cp.grid
-             )
- )
+```{r echo=FALSE}
+set.seed(3333)
+(reg_tree_model <- df_train %>% select(-days_until_next_categ, -id, -inspection_date) %>% 
+    train(as.numeric(days_until_next) ~ .,
+          data = .,
+          method = "rpart",
+          trControl = myControl,
+          tuneGrid = cp.grid))
+library(rpart.plot)
+rpart.plot ( reg_tree_model$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )
 ```
 
-
-```{r}
-rpart.plot(m3$finalModel, type = 3, digits = 3, fallen.leaves = TRUE)
-```
-
-### 3.4 Linear Regression Model with all predictors
-
-```{r}
-(m4 <- train(
-  as.numeric(days_until_next) ~ .,
-  data = train_df,
-  method = "glm"))
-```
+The model has a slightly higher R squared than the linear regression model. Nevertheless, the fit of the regression to the training data is quite poor.
 
 
-### 3.5 Discretizing the Response based on the three modes in distribution of 'days_until_next'
+### 3.6 Reformulating the problem: Classification
 
-```{r}
-train_df %>% 
-ggplot(aes(x = as.numeric(days_until_next))) + 
-  geom_density() +
-  scale_x_continuous(breaks = seq(0, 900, 50)) +
-  xlab("days until next inspection")
-```
 
-We will bin the response variable according to the 3 humps in the distribution. The boundaries will be 100 and 300. We will train a decision tree using 10-fold cross validation:
+As we have seen, linear regression and regression trees did a poor job of predicting the number of days until the next inspection. This is disappointing, but we can rephrase the problem. Instead of predicting the number of days, we could give a time interval into which the next inspection will fall.  
+
+
+
+### 3.7 Classification model
+
+As a next step, we will turn the continuous target into a categorical variable, by dividing the range into bins. The first bin will be the 0 - 100 days, the second 101 - 300 and the third bin more than 300 days. Then we will fit a classification tree to the data, using 10-fold cross validation:
 
 ```{r}
 set.seed(3333)
-
-(m5 <- train_df %>% mutate(days_until_next = case_when(
-  between(as.numeric(days_until_next), 0, 100) ~ "within the next 2 to 3 months",
-  between(as.numeric(days_until_next), 101, 300) ~ "within the next 10 months",
-  TRUE ~ "in more than 10 months"),
-  days_until_next = as.factor(days_until_next)) %>% 
-    train(days_until_next ~ ., 
+(class_tree_model <- df_train %>% select(-days_until_next, -id, -inspection_date) %>% 
+    train(days_until_next_categ ~ ., 
           data = ., 
           method = "rpart", 
           trControl = myControl, 
           tuneGrid = cp.grid)
 )
+rpart.plot ( class_tree_model$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )
 ```
 
-```{r}
-rpart.plot(m5$finalModel, type = 3, digits = 3, fallen.leaves = TRUE)
+As we can see, the accuracy of the model is 0.819. Let us look at additional measures of performance:
+
+```{r echo=FALSE}
+confusionMatrix(data = predict(class_tree_model, df_train),
+                reference = df_train$days_until_next_categ)
 ```
 
-Let  us try a different binning of the target: 
+Sensitivity and specificity of all models are at least 0.84 for all classes, except for the third class, for which sensitiviy is at 0.71. The model 
 
-```{r}
-set.seed(3333)
+### 3.8 Evaluation of final model
 
-cp.grid <- expand.grid(.cp = (1:50)*0.01)
+Finally we evaluate the final model on the test data:
 
-(m6 <- train_df %>% mutate(days_until_next = case_when(
-  between(as.numeric(days_until_next), 0, 40) ~ "within next 40 days",
-  between(as.numeric(days_until_next), 41, 190) ~ "within next 6 months",
-  between(as.numeric(days_until_next), 191, 320) ~ "within next 6 to 10 months",
-  TRUE ~ "in more than 10 months"),
-  days_until_next = as.factor(days_until_next)) %>% 
-    train(days_until_next ~ ., 
-          data = ., 
-          method = "rpart", 
-          trControl = myControl, 
-          tuneGrid = cp.grid)
-)
+```{r echo=FALSE}
+confusionMatrix(data = predict(class_tree_model, df_test),
+                reference = df_test$days_until_next_categ)
 ```
 
+Hence, the performance of the model on the test data is similar than on the training data.
 
+### 3.9 Conclusion
 
+Our initial goal to predict the number of days until the next inspection could not be attained. Instead, we rephrased the problem and turned it into a classification problem. Then, we fit a classification tree on the training data, employing cross validation. The resulting model also performed well on the test data. So eventually, we have provided our client with a device that predicts a time window the next inspection is likely to occur in. 

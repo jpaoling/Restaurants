@@ -37,18 +37,13 @@ myControl <- trainControl(
 cp.grid <- expand.grid(.cp = (1:10)*0.01)
 
 
-# Model 1: Classification tree
-set.seed(3333)
-(class_tree_model <- df_train %>% select(-days_until_next, -id, -inspection_date) %>% 
-    train(days_until_next_categ ~ ., 
-          data = ., 
-          method = "rpart", 
-          trControl = myControl, 
-          tuneGrid = cp.grid)
-)
-rpart.plot ( class_tree_model$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )
-saveRDS ( class_tree_model, "class_tree_model.rds" )
-
+# Model 1: Linear Regression 
+(lin_reg_model <- df_train %>% 
+    select(-days_until_next_categ, -id, -inspection_date) %>%
+    train(as.numeric(days_until_next) ~ .,
+          data = .,
+          method = "lm"))
+saveRDS ( lin_reg_model, "lin_reg_model.rds" )
 
 # Model 2: Regression tree
 set.seed(3333)
@@ -61,13 +56,23 @@ set.seed(3333)
 rpart.plot ( reg_tree_model$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )
 saveRDS ( reg_tree_model, "reg_tree_model.rds" )
 
-# Model 3: Linear Regression 
-(lin_reg_model <- df_train %>% 
-    select(-days_until_next_categ, -id, -inspection_date) %>%
-    train(as.numeric(days_until_next) ~ .,
-          data = .,
-          method = "lm"))
-saveRDS ( lin_reg_model, "lin_reg_model.rds" )
+
+# Model 3: Classification tree
+set.seed(3333)
+(class_tree_model <- df_train %>% select(-days_until_next, -id, -inspection_date) %>% 
+    train(days_until_next_categ ~ ., 
+          data = ., 
+          method = "rpart", 
+          trControl = myControl, 
+          tuneGrid = cp.grid)
+)
+rpart.plot ( class_tree_model$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )
+saveRDS ( class_tree_model, "class_tree_model.rds" )
+
+
+
+
+
 
 # Validation Model 2
 

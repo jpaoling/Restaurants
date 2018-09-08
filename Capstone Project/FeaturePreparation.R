@@ -12,7 +12,7 @@ clean_data_df <- function ( file_name ) {
   
   # Read in data set
   suppressWarnings ( df_raw <- read_excel( file_name ) )
-
+  
   # Rename variables
   new_names <- c("id", "rest_name", "boro", "building", "street", "zipcode", 
                "phone", "cuisine_descr", "inspection_date", "action", 
@@ -26,7 +26,7 @@ clean_data_df <- function ( file_name ) {
   df_raw$inspection_date <- ymd(df_raw$inspection_date) 
   df_raw <- df_raw %>% 
     filter(!inspection_date == "1900-01-01")
-
+  
   # Cuisine_description: Relabel level "CafÃƒÂ©/Coffee/Tea" which is at position 14 in levels vector
   cuis_ind <- levels(df_raw$cuisine_descr) == levels(df_raw$cuisine_descr)[14]
   levels(df_raw$cuisine_descr)[cuis_ind] <- "Coffee_Tea"
@@ -99,11 +99,8 @@ clean_data_df <- function ( file_name ) {
       TRUE ~ grade
     ))
   
-  # convert into factor:
-  df_raw <- df_raw %>% 
-    mutate(grade = as.factor(grade))
   
-  df_raw
+  df_raw <- df_raw %>% mutate(grade = as.factor(grade))
 
 }
 
@@ -168,7 +165,7 @@ make_feature_set <- function ( df_raw, is_train ) {
   
 }
   
-  # Impute missing values for score and grade:
+# Impute missing values for score and grade:
 
 impute_features <- function ( df_features ) {
   
@@ -188,9 +185,7 @@ impute_features <- function ( df_features ) {
   df_features$grade[is.na(df_features$grade)] <-
     predict(gradeFit, df_features[is.na(df_features$grade), ], type = "class")
   
-  
-  df_features
-  
+
 }
   
   
