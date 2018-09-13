@@ -39,8 +39,10 @@ cp.grid <- expand.grid(.cp = (1:10)*0.01)
 
 # Model 1: Linear Regression 
 (lin_reg_model <- df_train %>% 
-    select(-days_until_next_categ, -id, -inspection_date) %>%
-    train(as.numeric(days_until_next) ~ .,
+    train(as.numeric(days_until_next) ~ as.factor(grade) + dummy_InitialInspection +
+          score + cuisine_descr + viol_vermin + viol_not_scored + viol_facility + 
+          viol_food_temperature + viol_hygiene + viol_food_protection + 
+          viol_food_source + viol_other_scored + critical_flag,
           data = .,
           method = "lm"))
 saveRDS ( lin_reg_model, "lin_reg_model.rds" )
@@ -74,10 +76,6 @@ saveRDS ( class_tree_model, "class_tree_model.rds" )
 
 
 
-# Validation Model 2
-
-
-# Validation Model 3
 
 
 # Evaluate final model on training data: 

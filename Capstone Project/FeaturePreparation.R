@@ -102,6 +102,7 @@ clean_data_df <- function ( file_name ) {
   
   df_raw <- df_raw %>% mutate(grade = as.factor(grade))
 
+  df_raw
 }
 
 
@@ -115,7 +116,7 @@ make_feature_set <- function ( df_raw, is_train ) {
     df %>% 
       select ( id, inspection_date, dummy_InitialInspection, score, 
                grade, cuisine_descr ) %>% 
-      group_by( id, inspection_date ) %>% 
+      group_by ( id, inspection_date ) %>% 
       arrange ( id, inspection_date ) %>% 
       summarise_at ( vars(c("grade","dummy_InitialInspection", "score", "cuisine_descr")), 
                      .funs = list(first) ) 
@@ -165,28 +166,35 @@ make_feature_set <- function ( df_raw, is_train ) {
   
 }
   
-# Impute missing values for score and grade:
+# Impute missing values for 'score' and 'grade':
 
-impute_features <- function ( df_features ) {
+impute_features <- function ( df_features_raw ) {
   
-  scoreFit <- df_features %>%
+  scoreFit <- df_features_raw %>%
     filter ( !is.na ( score ) ) %>%
     select ( score, grade, dummy_InitialInspection, cuisine_descr,
-           starts_with ( "viol_" ), critical_flag ) %>%
+             starts_with ( "viol_" ), critical_flag ) %>%
     rpart ( score ~ ., data = ., method = "anova" )
-  df_features$score[is.na( df_features$score )] <-
-    predict(scoreFit, df_features[is.na(df_features$score), ])
   
-  gradeFit <- df_features %>%
-    filter(!is.na(grade)) %>%
-    select(score, grade, dummy_InitialInspection, cuisine_descr,
-           starts_with("viol_"), critical_flag) %>%
-    rpart(grade ~ ., data = ., method = "class")
-  df_features$grade[is.na(df_features$grade)] <-
-    predict(gradeFit, df_features[is.na(df_features$grade), ], type = "class")
+  gradeFit <- df_features_raw %>%
+    filter ( !is.na ( grade ) ) %>%
+    select ( score, grade, dummy_InitialInspection, cuisine_descr,
+             starts_with ( "viol_" ), critical_flag ) %>%
+    rpart ( grade ~ ., data = ., method = "class" )
   
-
+  
+  df_features_raw %>%
+    filter(is.na(score)) %>%
+    mutate(score = predict(scoreFit, df_features_raw %>%
+                             filter(is.na(score)))) %>%
+    bind_rows(df_features_raw %>%
+                filter(!is.na(score))) %>%
+    filter(is.na(grade)) %>% mutate(grade = predict(gradeFit, df_features_raw %>% filter(is.na(grade)), type = "class")) %>%
+    bind_rows(df_features_raw %>%
+                filter(!is.na(grade))) 
+  
 }
+
   
   
   
