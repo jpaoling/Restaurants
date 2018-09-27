@@ -10,15 +10,20 @@ library(caret)
 library(e1071)
 library(rpart.plot)
 
+# Read in data set
+df_raw <- read_excel( "New_York_City_Restaurants.xlsx" )
+
 # Create clean data set:
-df_clean <- clean_data_df("New_York_City_Restaurants.xlsx") 
+df_clean <- clean_data_df(df_raw = df_raw) 
 
 # Split into training and test set:
 set.seed(1)
 train_ids <- sample(unique(df_clean$id), 0.6*length(unique(df_clean$id)))
 test_ids <- setdiff(unique(df_clean$id), train_ids)
 
-df_features <- make_feature_set(df_clean, is_train = TRUE) %>% impute_features()
+df_features_raw <- make_feature_set(df_clean, is_train = TRUE)
+
+df_features <- df_features_raw %>% impute_features()
 
 df_train <- df_features %>% filter(id %in% train_ids)
 df_test <- df_features %>% filter(id %in% test_ids)
