@@ -1,7 +1,8 @@
 
 ## Modeling
-# Data set at https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j
-# Save as "New_York_City_Restaurants.xlsx" in working directory
+# Data set at
+# https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j
+# Saved as "New_York_City_Restaurants.xlsx" in working directory
 
 # hier zur API
 
@@ -11,21 +12,28 @@ library(e1071)
 library(rpart.plot)
 
 # Read in data set
-df_raw <- read_excel( "New_York_City_Restaurants.xlsx" )
+df_raw <- read_excel( "New_York_City_Restaurants.xlsx", 
+                      col_types = c(rep("text", 8), 
+                                    "date", 
+                                    rep("text", 4), 
+                                    "numeric",
+                                    "text",
+                                    rep("date", 2),
+                                    "text")) 
 
-# Create clean data set:
-df_clean <- clean_data_df(df_raw = df_raw) 
+# Create feature set:
+df_features <- df_raw %>% 
+  tame_df() %>% 
+  make_features_raw() %>% 
+  impute_features() 
 
 # Split into training and test set:
 set.seed(1)
-train_ids <- sample(unique(df_clean$id), 0.6*length(unique(df_clean$id)))
-test_ids <- setdiff(unique(df_clean$id), train_ids)
+train_ids <- sample(unique(df_features$id), 0.6*length(unique(df_features$id)))
+test_ids <- setdiff(unique(df_features$id), train_ids)
 
-df_features_raw <- make_feature_set(df_clean, is_train = TRUE)
 
-df_features <- df_features_raw %>% impute_features()
-
-df_train <- df_features %>% filter(id %in% train_ids)
+df_train <- df_features %>% filter(id %in% train_ids) %>% add_target_feature()
 df_test <- df_features %>% filter(id %in% test_ids)
 write.csv(df_test, "test_restaurants.csv")
 
@@ -44,7 +52,7 @@ cp.grid <- expand.grid(.cp = (1:10)*0.01)
 
 # Model 1: Linear Regression 
 (lin_reg_model <- df_train %>% 
-    train(as.numeric(days_until_next) ~ as.factor(grade) + dummy_InitialInspection +
+    train(as.numeric(days_until_next) ~ grade + dummy_InitialInspection +
           score + cuisine_descr + viol_vermin + viol_not_scored + viol_facility + 
           viol_food_temperature + viol_hygiene + viol_food_protection + 
           viol_food_source + viol_other_scored + critical_flag,
@@ -58,6 +66,7 @@ set.seed(3333)
     train(as.numeric(days_until_next) ~ .,
           data = .,
           method = "rpart",
+          na.action = na.pass,
           trControl = myControl,
           tuneGrid = cp.grid))
 rpart.plot ( reg_tree_model$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )

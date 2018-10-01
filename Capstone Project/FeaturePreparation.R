@@ -7,9 +7,9 @@ library(janitor)
 library(rpart)
 library(rpart.plot)
 
-## Clean data set: einlesen herausnehmen!
+## Tame data:
 
-clean_data_df <- function ( df_raw ) {
+tame_df <- function ( df_raw ) {
   
   df_raw %>% 
     clean_names() %>% 
@@ -39,7 +39,7 @@ clean_data_df <- function ( df_raw ) {
                                ReClosed = "Establishment re-closed by DOHMH",
                                NoViol = "No violations were recorded at the time of this inspection.")) %>% 
     # Convert 'violation_code' into factor
-    mutate(violation_code = as_factor(violation_code)) %>% 
+    # mutate(violation_code = as_factor(violation_code)) %>% 
     # Violation types: new variable violation_group
     mutate(violation_group = case_when(
       violation_code %in% str_c("02", LETTERS[1:10]) ~ "food_temperature",
@@ -69,105 +69,88 @@ clean_data_df <- function ( df_raw ) {
     mutate(dummy_InitialInspection = case_when(
       inspection_type2 == "InitialInspection" ~ "Initial",
       TRUE ~ "Not_Initial"
-    )) %>% 
+    )) %>%
+    # mutate(dummy_InitialInspection = as_factor(dummy_InitialInspection)) %>% 
     # Grade: Recode NA's with inspection type = 'InitialInspection' and 'score' > 14 to "Not Yet Graded"
     mutate(grade = case_when(
       is.na(.$grade) &
         .$inspection_type2 == "InitialInspection" &
         .$score > 14 ~ "Not Yet Graded",
       TRUE ~ grade
-    )) %>% 
-    mutate(grade = as_factor(grade))
+    )) # %>% 
+  # mutate(grade = as_factor(grade))
   
   
 }
 
 
+## Make feature set:
 
-## Generate feature set: 
- 
-make_feature_set <- function ( df_raw, is_train ) {
+make_features_raw <- function ( df ) {
   
-  make_df_GradeInspecScoreCuisine <- function ( df ) {
-    
-    df %>% 
-      select ( id, inspection_date, dummy_InitialInspection, score, 
-               grade, cuisine_descr ) %>% 
-      group_by ( id, inspection_date ) %>% 
-      arrange ( id, inspection_date ) %>% 
-      summarise_at ( vars(c("grade","dummy_InitialInspection", "score", "cuisine_descr")), 
-                     .funs = list(first) ) 
-
-  }
-  
-  make_df_sumViolFlags <- function(df) {
-    
-    df %>% 
-      select ( id, inspection_date, starts_with("viol_"), starts_with("critical") ) %>% 
-      mutate( critical_flag = case_when( critical_flag == "Critical" ~ 1, 
-                                         TRUE ~ 0 ) ) %>% 
-      group_by ( id, inspection_date ) %>% 
-      arrange ( id, inspection_date ) %>% 
-      summarise_at ( vars(starts_with( "viol" ), starts_with( "critical" ) ), ~ sum( ., na.rm = TRUE ) ) 
-
-  }
-  
-  make_df <- function(df) {
-    
-    left_join ( make_df_GradeInspecScoreCuisine ( df ) , make_df_sumViolFlags ( df ) ,
-               by = c ( "id", "inspection_date" ) )
-
-  }
-  
-  # Data set with features and response
-  if ( is_train ) {
-    
-    df_features <- make_df ( df_raw ) %>% 
-      mutate ( days_until_next = lead ( inspection_date ) - inspection_date ) %>% 
-      filter ( !is.na ( days_until_next ) ) %>% 
-      ungroup() %>% 
-      mutate ( days_until_next_categ = case_when (
-        between ( as.numeric ( days_until_next ), 0, 100 ) ~ "within 2 to 3 months",
-        between ( as.numeric ( days_until_next ), 101, 300 ) ~ "within 10 months",
-        TRUE ~ "in more than 10 months" ),
-        days_until_next_categ = as.factor ( days_until_next_categ ) ) 
-    
-    
-  } else {
-    
-    df_features <- make_df ( df_raw ) %>% ungroup()
-    
-  }
-  
-  df_features
+  df %>% 
+    select ( id, inspection_date, dummy_InitialInspection, score, 
+             grade, cuisine_descr ) %>% 
+    group_by ( id, inspection_date ) %>% 
+    arrange ( id, inspection_date ) %>% 
+    summarise_at ( vars(c("grade","dummy_InitialInspection", "score", "cuisine_descr")), 
+                   .funs = list(first) ) %>%
+    left_join ( 
+      df %>% 
+        select ( id, inspection_date, starts_with("viol_"), starts_with("critical") ) %>%
+        mutate( critical_flag = case_when( critical_flag == "Critical" ~ 1,
+                                           TRUE ~ 0 ) ) %>%
+        group_by ( id, inspection_date ) %>%
+        arrange ( id, inspection_date ) %>%
+        summarise_at ( vars(starts_with( "viol" ), starts_with( "critical" ) ),
+                       ~ sum( ., na.rm = TRUE ) ),
+      by = c ( "id", "inspection_date" ) ) %>% 
+    ungroup()
   
 }
-  
-# Impute missing values for 'score' and 'grade':
 
-impute_features <- function ( df_features_raw ) {
-  
-  scoreFit <- df_features_raw %>%
-    filter ( !is.na ( score ) ) %>%
-    select ( score, grade, dummy_InitialInspection, cuisine_descr,
-             starts_with ( "viol_" ), critical_flag ) %>%
-    rpart ( score ~ ., data = ., method = "anova" )
-  
-  gradeFit <- df_features_raw %>%
-    filter ( !is.na ( grade ) ) %>%
-    select ( score, grade, dummy_InitialInspection, cuisine_descr,
-             starts_with ( "viol_" ), critical_flag ) %>%
-    rpart ( grade ~ ., data = ., method = "class" )
+
+# Impute features
+
+impute_features <- function ( df ) {
   
   
-  df_features_raw %>%
+  df %>%
     filter(is.na(score)) %>%
-    mutate(score = predict(scoreFit, .)) %>%
-    bind_rows(df_features_raw %>%
-                filter(!is.na(score))) %>%
-    filter(is.na(grade)) %>% mutate(grade = predict(gradeFit, ., type = "class")) %>%
-    bind_rows(df_features_raw %>%
+    mutate(score = predict(df %>%
+                             filter ( !is.na ( score ) ) %>%
+                             select ( score, grade, dummy_InitialInspection, cuisine_descr,
+                                      starts_with ( "viol_" ), critical_flag ) %>%
+                             rpart ( score ~ ., data = ., method = "anova" ), .)) %>%
+    bind_rows(df %>% filter(!is.na(score))) %>%
+    filter(is.na(grade)) %>% 
+    mutate(grade = predict(df %>%
+                             filter ( !is.na ( grade ) ) %>%
+                             select ( score, grade, dummy_InitialInspection, cuisine_descr,
+                                      starts_with ( "viol_" ), critical_flag ) %>%
+                             rpart ( grade ~ ., data = ., method = "class" ), ., type = "class")) %>%
+    bind_rows(df %>%
                 filter(!is.na(grade)))
+  
+}
+
+
+# Add target feature
+
+add_target_feature <- function(df) {
+  
+  df %>%  
+    group_by(id) %>% 
+    arrange(id, inspection_date) %>% 
+    mutate ( days_until_next = lead ( inspection_date ) - inspection_date ) %>% 
+    filter(!is.na(days_until_next)) %>% 
+    ungroup() %>% 
+    mutate ( days_until_next_categ = case_when (
+      between ( as.numeric ( days_until_next ), 0, 100 ) ~ "within 2 to 3 months",
+      between ( as.numeric ( days_until_next ), 101, 300 ) ~ "within 10 months",
+      TRUE ~ "in more than 10 months" ),
+      days_until_next_categ = as.factor ( days_until_next_categ ) ) %>% 
+    ungroup()
   
 }
 
