@@ -130,7 +130,9 @@ impute_features <- function ( df ) {
                                       starts_with ( "viol_" ), critical_flag ) %>%
                              rpart ( grade ~ ., data = ., method = "class" ), ., type = "class")) %>%
     bind_rows(df %>%
-                filter(!is.na(grade)))
+                filter(!is.na(grade))) %>% 
+    suppressWarnings() 
+    
   
 }
 
@@ -150,7 +152,7 @@ add_target_feature <- function(df) {
       between ( as.numeric ( days_until_next ), 101, 300 ) ~ "within 10 months",
       TRUE ~ "in more than 10 months" ),
       days_until_next_categ = as.factor ( days_until_next_categ ) ) %>% 
-    ungroup()
+    ungroup() 
   
 }
 
