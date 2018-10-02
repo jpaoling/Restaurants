@@ -128,14 +128,13 @@ impute_features <- function ( df ) {
                              filter ( !is.na ( grade ) ) %>%
                              select ( score, grade, dummy_InitialInspection, cuisine_descr,
                                       starts_with ( "viol_" ), critical_flag ) %>%
-                             rpart ( grade ~ ., data = ., method = "class" ), ., type = "class")) %>%
+                             rpart ( grade ~ ., data = ., method = "class" ), ., type = "class"),
+           grade = as.character(grade)) %>%
     bind_rows(df %>%
-                filter(!is.na(grade))) %>% 
-    suppressWarnings() 
-    
+                filter(!is.na(grade)))
+  
   
 }
-
 
 # Add target feature
 

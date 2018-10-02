@@ -4,8 +4,6 @@
 # https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j
 # Saved as "New_York_City_Restaurants.xlsx" in working directory
 
-# hier zur API
-
 # Load packages to be used:
 library(caret) 
 library(e1071)
@@ -25,7 +23,7 @@ df_raw <- read_excel( "New_York_City_Restaurants.xlsx",
 df_features <- df_raw %>% 
   tame_df() %>% 
   make_features_raw() %>% 
-  impute_features() 
+  impute_features()
 
 # Split into training and test set:
 set.seed(1)
