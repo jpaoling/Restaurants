@@ -22,9 +22,10 @@ tame_df <- function ( df_raw ) {
     # convert 'cuisine description' into factor
     mutate(cuisine_descr = as_factor(cuisine_descr)) %>% 
     # Cuisine_description: Relabel level "CafÃƒÂ©/Coffee/Tea" and "Latin (...
-    mutate(cuisine_descr = fct_recode(cuisine_descr,
-                                      Coffee_Tea = "CafÃƒÂ©/Coffee/Tea",
-                                      Latin = "Latin (Cuban, Dominican, Puerto Rican, South & Central American)")) %>% 
+    mutate(cuisine_descr = 
+             fct_recode(cuisine_descr, 
+                        Coffee_Tea = "CafÃƒÂ©/Coffee/Tea",
+                        Latin = "Latin (Cuban, Dominican, Puerto Rican, South & Central American)")) %>% 
     # only keep the 20 most frequent cuisines    
     mutate(cuisine_descr = fct_lump(f = cuisine_descr, n = 20)) %>% 
     # Boro: recode missing values and convert into factor
@@ -35,7 +36,9 @@ tame_df <- function ( df_raw ) {
     mutate(action = fct_recode(action, 
                                YesViol = "Violations were cited in the following area(s).",
                                ReOpened = "Establishment re-opened by DOHMH",
-                               Closed = "Establishment Closed by DOHMH.  Violations were cited in the following area(s) and those requiring immediate action were addressed.",
+                               Closed = "Establishment Closed by DOHMH.
+                               Violations were cited in the following area(s)
+                               and those requiring immediate action were addressed.",
                                ReClosed = "Establishment re-closed by DOHMH",
                                NoViol = "No violations were recorded at the time of this inspection.")) %>% 
     # Convert 'violation_code' into factor
