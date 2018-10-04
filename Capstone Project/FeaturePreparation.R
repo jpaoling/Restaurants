@@ -77,9 +77,7 @@ tame_df <- function ( df_raw ) {
         .$inspection_type2 == "InitialInspection" &
         .$score > 14 ~ "Not Yet Graded",
       TRUE ~ grade
-    )) # %>% 
-  # mutate(grade = as_factor(grade))
-  
+    )) 
   
 }
 
@@ -114,7 +112,6 @@ make_features_raw <- function ( df ) {
 
 impute_features <- function ( df ) {
   
-  
   df %>%
     filter(is.na(score)) %>%
     mutate(score = predict(df %>%
@@ -132,8 +129,7 @@ impute_features <- function ( df ) {
            grade = as.character(grade)) %>%
     bind_rows(df %>%
                 filter(!is.na(grade)))
-  
-  
+
 }
 
 # Add target feature
