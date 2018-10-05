@@ -99,7 +99,6 @@ tame_df <- function ( df_raw ) {
 df_tame <- tame_df()
 ```
 
-
 ```{r}
 # Save clean data frame to RDS file
 saveRDS(df_tame, "df_tame.rds")
