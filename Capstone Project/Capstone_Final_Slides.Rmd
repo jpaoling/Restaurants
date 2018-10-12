@@ -1,0 +1,93 @@
+---
+title: "When is your next inspection?"
+subtitle: "Springboard Capstone Project"
+author: "by Jonas Makonnen"
+output:
+  beamer_presentation: default
+  slidy_presentation: default
+  theme: "Ann Arbor"
+  colortheme: "dolphin"
+  fonttheme: "structurebold"
+  df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+df_tame <- readRDS("df_tame.rds")
+```
+
+
+## Introduction
+- Goal: Prediction of the number of days until next restaurant inspection
+
+- Data: Open Data on restaurant inspections in NYC from 2011 to 2018
+
+
+## Data
+
+- Restaurant inspections carried out by the Department of Mental Health and Hygiene (DOHMH) in New York City
+
+- Information about inspection date, name of the restaurant, cuisine type, violations, grade, actions taken by the DOHMH etc. 
+
+```{r echo=FALSE}
+df_tame %>% select(-before_slash, -after_slash) %>% 
+  names()
+```
+
+## Exploratory Data Analysis (Action taken)
+
+Records of violations in the vast majority of cases.
+
+```{r echo=FALSE}
+df_tame %>% 
+  group_by(id, inspection_date) %>% 
+  summarise(action_taken = first(action)) %>% 
+  group_by(action_taken) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(x = reorder(action_taken, -n), y = n)) +
+  geom_bar(stat = "identity") +
+  xlab("Action taken by DOHMH") +
+  theme_minimal() +
+  theme(
+    text = element_text(
+      family = "serif",
+      color = "gray25"
+    )
+  )
+```
+
+
+## Exploratory Data Analysis (Violation type) - 1
+
+10F (general violation pertaining to non-food contact surfaces) is the most common violation type. followed by 08A (facility not vermin proof), 04L (Evidence of mice):
+
+```{r echo=FALSE}
+df_tame %>% 
+  group_by(violation_code) %>% 
+  summarise(number = n()) %>% 
+  mutate(rank = rank(desc(number))) %>% 
+  filter(rank <= 10) %>% 
+  arrange(rank)
+```
+
+## Exploratory Data Analysis (Violation type) - 2
+
+We can look at the frequencies while organizing codes into broader groups:
+
+```{r echo=FALSE}
+df_tame %>% 
+  mutate(violation_code = as_factor(violation_code)) %>% 
+  ggplot(aes(x = fct_rev(fct_infreq(violation_code)), 
+             fill = violation_group)) +
+  geom_bar() +
+  theme(text = element_text(
+    family = "serif",
+    color = "gray25"
+    ),
+        axis.text.y = element_text(size = 4)
+    ) +
+  xlab("Violation code") + 
+  coord_flip()
+```
+
