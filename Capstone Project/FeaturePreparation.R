@@ -46,51 +46,54 @@ tame_df <- function ( df_raw ) {
     # Convert 'violation_code' into factor
     # mutate(violation_code = as_factor(violation_code)) %>% 
     # Violation types: new variable violation_group
-    mutate(violation_group = 
-             case_when(
-               violation_code %in% 
-                 str_c("02", LETTERS[1:10]) ~ "food_temperature",
-               violation_code %in% 
-                 c(str_c("03", LETTERS[1:7]), 
-                 str_c("09", LETTERS[1:3])) ~ "food_source",
-               violation_code %in% 
-                 str_c("04", LETTERS[1:10]) ~ "food_protection",
-               violation_code %in% 
-                 c(str_c("05", LETTERS[1:9]), 
-                 str_c("10", LETTERS[1:10])) ~ "facility",
-               violation_code %in% 
-                 str_c("06", LETTERS[1:9]) ~ "hygiene",
-               violation_code %in% 
-                 str_c("04", LETTERS[11:15]) ~ "vermin",
-               violation_code %in% 
-                 c("07A", "99B") ~ "other_scored",
-               !is.na(violation_code) ~ "not_scored"
-               )) %>% 
+    mutate(
+      violation_group = 
+        case_when(
+          violation_code %in% 
+            str_c("02", LETTERS[1:10]) ~ "food_temperature",
+          violation_code %in% 
+            c(str_c("03", LETTERS[1:7]), 
+              str_c("09", LETTERS[1:3])) ~ "food_source",
+          violation_code %in% 
+            str_c("04", LETTERS[1:10]) ~ "food_protection",
+          violation_code %in% 
+            c(str_c("05", LETTERS[1:9]), 
+              str_c("10", LETTERS[1:10])) ~ "facility",
+          violation_code %in% 
+              str_c("06", LETTERS[1:9]) ~ "hygiene",
+          violation_code %in% 
+              str_c("04", LETTERS[11:15]) ~ "vermin",
+          violation_code %in% 
+              c("07A", "99B") ~ "other_scored",
+          !is.na(violation_code) ~ "not_scored"
+          )
+      ) %>% 
+    mutate(
+      violation_group = as_factor(violation_group),
+      violation_group = fct_collapse(violation_group,
+                                     food = c("food_temperature",
+                                              "food_protection",
+                                              "food_source",
+                                              "other_scored")
+                                     )
+      ) %>% 
     # Create indicator variables for levels of 'violation_group'
-    mutate(viol_vermin = 
-             case_when(violation_group == "vermin" ~ 1, 
-                       TRUE ~ 0),
-           viol_not_scored = 
-             case_when(violation_group == "not_scored" ~ 1, 
-                       TRUE ~ 0),
-           viol_facility = 
-             case_when(violation_group == "facility" ~ 1, 
-                       TRUE ~ 0),
-           viol_food_temperature = 
-             case_when(violation_group == "food_temperature" ~ 1, 
-                       TRUE ~ 0),
-           viol_hygiene = 
-             case_when(violation_group == "hygiene" ~ 1, 
-                       TRUE ~ 0),
-           viol_food_protection = 
-             case_when(violation_group == "food_protection" ~ 1, 
-                       TRUE ~ 0),
-           viol_food_source = 
-             case_when(violation_group == "food_source" ~ 1, 
-                       TRUE ~ 0),
-           viol_other_scored = 
-             case_when(violation_group == "other_scored"  ~ 1, 
-                       TRUE ~ 0)
+    mutate(
+      viol_vermin = 
+        case_when(violation_group == "vermin" ~ 1, 
+                  TRUE ~ 0),
+      viol_facility = 
+        case_when(violation_group == "facility" ~ 1, 
+                  TRUE ~ 0),
+      viol_food = 
+        case_when(violation_group == "food" ~ 1, 
+                  TRUE ~ 0),
+      viol_hygiene = 
+        case_when(violation_group == "hygiene" ~ 1, 
+                  TRUE ~ 0),
+      viol_not_scored = 
+        case_when(violation_group == "not_scored"  ~ 1, 
+                  TRUE ~ 0)
     ) %>% 
     # Inspection type: collapse into fewer categories
     separate(inspection_type, 
@@ -101,15 +104,11 @@ tame_df <- function ( df_raw ) {
                              fixed(""))) %>% 
     mutate(inspection_type2 = 
              str_replace_all(after_slash, fixed("-i"), 
-                             fixed("I"))) %>% 
+                             fixed("I")),
+           inspection_type2 = as_factor(inspection_type2)) %>% 
     # Indicator variable for level 'Initial Inspection'
-    mutate(dummy_InitialInspection = 
-             case_when(
-               inspection_type2 == "InitialInspection" ~ "Initial",
-               TRUE ~ "Not_Initial"
-               )) %>%
-    mutate(dummy_InitialInspection = 
-             as_factor(dummy_InitialInspection)) %>%
+    mutate(inspection_type2 = fct_other(inspection_type2,
+                                        keep = "InitialInspection")) %>%
     # Grade: Recode NA's with 
     # inspection type = 'InitialInspection' 
     # and 'score' > 14 to "Not Yet Graded"
@@ -128,12 +127,12 @@ tame_df <- function ( df_raw ) {
 make_features_raw <- function ( df ) {
   
   df %>% 
-    select ( id, inspection_date, dummy_InitialInspection, score, 
+    select ( id, inspection_date, inspection_type2, score, 
              grade, cuisine_descr ) %>% 
     group_by ( id, inspection_date ) %>% 
     arrange ( id, inspection_date ) %>% 
     summarise_at ( 
-      vars(c("grade","dummy_InitialInspection", 
+      vars(c("grade","inspection_type2", 
              "score", "cuisine_descr")), 
                    .funs = list(first) ) %>%
     left_join ( 
@@ -164,7 +163,7 @@ impute_features <- function ( df ) {
              predict(df %>%
                        filter ( !is.na ( score ) ) %>%
                        select ( 
-                         score, grade, dummy_InitialInspection, cuisine_descr,
+                         score, grade, inspection_type2, cuisine_descr,
                          starts_with ( "viol_" ), critical_flag ) %>%
                        rpart ( score ~ ., data = ., method = "anova" ), .)) %>%
     bind_rows(df %>% filter(!is.na(score))) %>%
@@ -173,7 +172,7 @@ impute_features <- function ( df ) {
              predict(df %>%
                        filter ( !is.na ( grade ) ) %>%
                        select ( 
-                         score, grade, dummy_InitialInspection, cuisine_descr,
+                         score, grade, inspection_type2, cuisine_descr,
                          starts_with ( "viol_" ), critical_flag ) %>%
                        rpart ( grade ~ ., data = ., method = "class" ), ., 
                      type = "class"),
@@ -206,8 +205,7 @@ add_target_feature <- function(df) {
             as.numeric ( days_until_next ), 101, 300 
             ) ~ "within 10 months",
           TRUE ~ "in more than 10 months" ),
-      days_until_next_categ = 
-        as_factor ( days_until_next_categ ) ) %>% 
+      days_until_next_categ = as.factor(days_until_next_categ)) %>% 
     ungroup() 
   
 }

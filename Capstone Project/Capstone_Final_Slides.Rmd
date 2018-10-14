@@ -2,19 +2,18 @@
 title: "When is your next inspection?"
 subtitle: "Springboard Capstone Project"
 author: "by Jonas Makonnen"
-output:
-  beamer_presentation: default
-  slidy_presentation: default
-  theme: "Ann Arbor"
-  colortheme: "dolphin"
-  fonttheme: "structurebold"
-  df_print: paged
+output: 
+  beamer_presentation:
+    df_print: tibble
+    
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
-df_tame <- readRDS("df_tame.rds")
+library(rpart.plot)
+df_tame <- read_rds("df_tame.rds")
+df_features <- read_rds("df_features.rds")
 ```
 
 
@@ -28,14 +27,17 @@ df_tame <- readRDS("df_tame.rds")
 
 - Restaurant inspections carried out by the Department of Mental Health and Hygiene (DOHMH) in New York City
 
-- Information about inspection date, name of the restaurant, cuisine type, violations, grade, actions taken by the DOHMH etc. 
+- Information about inspection: date, name of the restaurant, cuisine type, violations, grade, actions taken by the DOHMH, etc. 
 
-```{r echo=FALSE}
-df_tame %>% select(-before_slash, -after_slash) %>% 
-  names()
+```{r }
+df_tame %>% select(-before_slash, -after_slash) %>%
+  names() %>% 
+  matrix(8, 3) %>% 
+  as_data_frame() %>% 
+  rename(Var = V1, Var = V2, Var = V3)
 ```
 
-## Exploratory Data Analysis (Action taken)
+## EDA (Action taken)
 
 Records of violations in the vast majority of cases.
 
@@ -58,9 +60,9 @@ df_tame %>%
 ```
 
 
-## Exploratory Data Analysis (Violation type) - 1
+## EDA (Violation type)
 
-10F (general violation pertaining to non-food contact surfaces) is the most common violation type. followed by 08A (facility not vermin proof), 04L (Evidence of mice):
+10F (general violation pertaining to non-food contact surfaces) is the most common violation type. followed by 08A (facility not vermin proof), 04L (Evidence of mice). 
 
 ```{r echo=FALSE}
 df_tame %>% 
@@ -70,24 +72,156 @@ df_tame %>%
   filter(rank <= 10) %>% 
   arrange(rank)
 ```
+ 
+------
 
-## Exploratory Data Analysis (Violation type) - 2
+We will gather these codes into the broader categories: *facility*, *food*, *vermin*, *hygiene*,  and *not_scored*.
 
-We can look at the frequencies while organizing codes into broader groups:
-
-```{r echo=FALSE}
+```{r}
 df_tame %>% 
-  mutate(violation_code = as_factor(violation_code)) %>% 
-  ggplot(aes(x = fct_rev(fct_infreq(violation_code)), 
-             fill = violation_group)) +
+  ggplot(aes(x = fct_infreq(violation_group))) +
   geom_bar() +
-  theme(text = element_text(
-    family = "serif",
-    color = "gray25"
+  xlab("Violation group") +
+  theme_minimal() +
+  theme(
+    text = element_text(
+      family = "serif",
+      color = "gray25"
     ),
-        axis.text.y = element_text(size = 4)
-    ) +
-  xlab("Violation code") + 
-  coord_flip()
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
 ```
+
+
+
+## Target: Number of days until next inspection
+
+```{r days until next, echo = F}
+df_features <- read_rds("df_features.rds")
+
+df_features %>% 
+  ggplot(aes(x = days_until_next %>% as.numeric())) +
+  geom_histogram(bins = 30) +
+  theme_minimal() +
+  theme(
+    text = element_text(
+      family = "serif",
+      color = "gray25"
+    )
+  ) +
+  xlab("Number of days until next inspection")
+```
+
+## Features
+
+- **score** of the inspection
+- **grade** of the inspection
+- **critical flag**, which indicates whether the inspection received a critical flag
+- **inspection type** for the given inspection
+- **cuisine** of the restaurant under inspection
+- **Number of violations** per inspection for a given restaurant for each of the categories *food*, *vermin*, etc.
+
+## First models: Linear Regression and Regression tree
+
+- A linear regression model with all predictors performs poorly in terms of fit to training data. 
+```{r echo = FALSE}
+model_1 <- read_rds("lin_reg_model.rds")
+
+model_1$results[3]
+```
+The coefficient of determination is `r 0.477`, i.e., the model explains 47 percent of the total variation in the target feature.
+
+- A Regression tree model employing 10-fold cross-validation performs only slightly better:
+```{r echo=FALSE}
+model_2 <- read_rds("reg_tree_model.rds")
+
+model_2$results[1, 3, drop = F]
+```
+
+## Reformulating the problem
+
+- It seems that the problem in its current formulation (prediction of number of days) is hard to solve. 
+- Instead try: prediction of time interval the next inspection is likely to fall into.
+- Less ambitious. Nevertheless, potentially useful. 
+
+## Classification
+
+- Frame the initial task as classification problem 
+- Distribution of the target feature: three humps 
+- Partition range accordingly: *within the next 3 months*, *within the next 10 momths*, *more than 10 months*
+- Method: Classification trees, Cross-Validation to choose a best model.
+
+```{r fig.height=5, echo=FALSE}
+df_features %>% 
+  ggplot(aes(x = as.numeric(days_until_next))) +
+  geom_histogram(bins = 30) +
+  geom_vline(xintercept = c(100, 300), linetype = "dashed") +
+  scale_x_continuous(breaks = c(100, 300, 500)) +
+  theme(
+    text = element_text(
+      family = "serif",
+      color = "gray25"
+    )
+  ) +
+  xlab("Number of days until next inspection")
+```
+
+## Visualization of model
+
+```{r}
+model_3 <- read_rds("class_tree_model.rds")
+rpart.plot ( model_3$finalModel, type = 3, digits = 3, fallen.leaves = TRUE )
+```
+
+## Interpretation:
+
+The model predicts the next inspection to occur *within 2 to 3 months* if the last inspection was an initial inspection and the restaurant did not receive a grade. If the last inspection was not initial and the restaurant did not receive a "grade-pending"-card, the next inspection occurs *within 10 months*. Finally, if the last inspection was an initial one, and no grade was awarded, the model predicts the next inspection to occur *in more than 10 months*.
+
+## Performance:
+
+The final model has an accuracy of 0.81. 
+
+```{r}
+model_3$results[1, 2, drop = F]
+```
+
+Accuracy on its own is not that informative, so we will have to consider other evaluation metrics as well:
+
+- Specificity (proportion of actual positives that are correctly identified as such) 
+- Sensitivity (proportion of actual negatives that are correctly identified as such)
+
+Knowing the proportions of the classes, we can use these measures to calculate the probability that the prediction of the classifier is correct (Positive Predictive value and Negative Predictive value) (using Bayes' Theorem)
+
+------------
+
+```{r}
+conf_train <- read_rds("confusion_train.rds") 
+
+conf_train$byClass %>% 
+  as_data_frame() %>% 
+  mutate(Class = c("More_than_10", "Within_10", "within_2_to_3")) %>% 
+  select(Class, Sensitivity, Specificity)
+```
+
+```{r}
+conf_train$byClass %>% 
+  as_data_frame() %>% 
+  mutate(Class = c("More_than_10", "Within_10", "within_2_to_3")) %>% 
+  select(Class, `Pos Pred Value`, `Neg Pred Value`)
+```
+
+With the exeption of the class *More_than_10*, we see positive and predictive values of at least 0.8. 
+
+Performance on the test data is similar.
+
+## Conclusion
+
+- Initial goal (prediction of number of days until next inspection) could not be achieved, so we reframed the problem into one which is easier to handle.
+
+- The solution of the reframed problem is useful for the potential client (restaurant in NYC), since it is valuable to have a time interval in which to expect the next inspection.
+
+- The final model could be used in an application that takes the ID of a restaurant and outputs a predicted time interval for the next inspection. 
+
+
+
 
