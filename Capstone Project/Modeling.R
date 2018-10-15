@@ -96,11 +96,11 @@ write_rds ( class_tree_model, "class_tree_model.rds" )
 conf_train <- confusionMatrix(data = predict(class_tree_model, df_train),
                               reference = df_train$days_until_next_categ) 
 
-write_rds("confusion_train.rds")
+write_rds(conf_train, "confusion_train.rds")
 
 # ... and on the test data:
 df_test <- readRDS("df_test.rds")
 conf_test <- confusionMatrix(data = predict(class_tree_model, df_test),
                              reference = df_test$days_until_next_categ)
 
-write_rds("confusion_test.rds")
+write_rds(conf_test, "confusion_test.rds")
