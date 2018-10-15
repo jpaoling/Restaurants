@@ -1,8 +1,11 @@
 
-## Shiny app 
-
-readRDS("class_tree_model.rds")
+## Load needed packages and objects  
+library(tidyverse)
 library(shiny)
+library(caret)
+class_tree_model <- read_rds("class_tree_model.rds")
+df_features <- read_rds("df_features.rds")
+make_pred <- read_rds("make_pred.rds")
 
 # Define UI for application that predicts the next inspection
 ui <- fluidPage(
@@ -30,8 +33,7 @@ server <- function(input, output) {
    
    output$text <- renderPrint({
       
-     make_df_pred(30075445) %>% 
-       predict(class_tree_model, .) %>% 
+     make_pred(30075445) %>% 
        as.character() %>% 
        str_c("Next inspection ", ., ".")
      
