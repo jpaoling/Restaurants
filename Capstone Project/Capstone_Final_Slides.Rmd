@@ -17,7 +17,12 @@ df_features <- read_rds("df_features.rds")
 ```
 
 
-## Introduction
+## Problem and Client
+
+- Problem 
+
+- Client (Why do they care?)
+
 - Goal: Prediction of the number of days until next restaurant inspection
 
 - Data: Open Data on restaurant inspections in NYC from 2011 to 2018

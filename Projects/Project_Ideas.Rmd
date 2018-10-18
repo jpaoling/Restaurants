@@ -1,0 +1,15 @@
+---
+title: "Project Idea"
+output:
+  pdf_document:
+  # html_document:
+  #   code_folding: hide
+  #   highlight: espresso
+  #   number_sections: yes
+  #   theme: journal
+---
+
+# My Idea
+
+I would like to use data on restaurant inspections in NYC to predict, for a restaurant, the time until an inspection occurs. I would like to use open data provided by the Department of Mental Health and Hygiene (DOHMH) in New York City on restaurant inspections in NYC between 2011 and 2018.
+

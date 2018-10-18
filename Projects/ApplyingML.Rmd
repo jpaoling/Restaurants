@@ -1,0 +1,28 @@
+---
+title: "Applying machine learning"
+subtitle: Prediction of restaurant inspections in NYC
+output:
+  pdf_document:
+    number_sections: true
+  html_document:
+    code_folding: hide
+    highlight: espresso
+    number_sections: yes
+    theme: journal
+---
+
+## Framing the problem as a machine learning problem
+
+Our main goal is to predict the time until the next inspection. In a first attempt, I will try to predict the number of days until the next inspection. Furthermore, I would like to use predictors constructed from the variables in the data set. Hence, the main question is framed as a supervised learning problem, in particular, a regression problem
+
+## Main features
+
+The main features will be score, grade, critical flag, inspection type, and number of violations in each violation group.
+
+## Techniques
+
+I am planning to use linear regression and regression trees (CART)
+
+##  Evaluation metrics
+
+I will use R squared or RMSE to evaluate the success of the model. 

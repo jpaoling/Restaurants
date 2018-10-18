@@ -1,0 +1,86 @@
+---
+title: "Applying Statistical Analysis"
+subtitle: Prediction of restaurant inspections in NYC
+output:
+  pdf_document:
+    number_sections: true
+  html_document:
+    code_folding: hide
+    highlight: espresso
+    number_sections: yes
+    theme: journal
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(gridExtra)
+# Reading in tame data
+df_train <- read_rds("df_train.rds")
+df_features <- read_rds("df_features.rds")
+lin_reg_model <- read_rds("lin_reg_model.rds")
+```
+
+# Introduction
+
+In the following, I will describe two instances where I used statistical analysis in my project. First, there is an exploration between one of the predictors, namely *grade* and the target, *days_until_next_inspection*. Next, I will carry out a similar descriptive analysis for *violation_group* and the target. 
+
+# Days vs. grade
+
+```{r}
+df_train %>%
+  ggplot ( aes ( x = grade, y = as.numeric ( days_until_next ) ) ) +
+  geom_boxplot ( fill = "grey") + 
+  geom_jitter(alpha = .1, width = .07) +
+  xlab("grade") +
+  ylab("days until next inspection") +
+  theme(
+    text = element_text(
+      family = "serif",
+      color = "gray25"
+    )
+  )
+```
+
+Here, we see boxplots of the target feature for each level of *grade*. I added some random 'horizontal' noise to the observations as a remedy against overplotting.The median number of days decreases as we move from A to C.
+
+# Days vs. violation groups
+
+```{r}
+# Plotting function
+plot_vs_days <- function(z) {
+  
+  df_train %>% 
+    ggplot(aes(x = as.factor(z), y = as.numeric(days_until_next))) + 
+    geom_boxplot() +
+    xlab("Number of violations") +
+    ylab("") +
+    theme(
+      text = element_text(
+        family = "serif",
+        color = "gray25"
+        )
+      )
+  
+}
+
+# Plot objects
+plot_lst <- df_train %>% 
+  select(starts_with("viol_")) %>% 
+  map(plot_vs_days)
+
+# Arrange plots in grid
+grid.arrange(
+  arrangeGrob(plot_lst[[1]], top = "Vermin") , 
+  arrangeGrob(plot_lst[[2]], top = "Facility"),
+  arrangeGrob(plot_lst[[3]], top = "Food"),
+  arrangeGrob(plot_lst[[4]], top = "Hygiene"), 
+  arrangeGrob(plot_lst[[5]], top = "Not scored"), 
+  ncol = 2)
+
+# Remove auxiliary objects
+rm(plot_lst)
+rm(plot_vs_days)
+```
+
+The median number of days until the next inspection decreases as the number of violations per inspection increases.
