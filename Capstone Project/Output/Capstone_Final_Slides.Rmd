@@ -1,11 +1,10 @@
 ---
 title: "When is your next inspection?"
-subtitle: "Springboard Capstone Project"
 author: "by Jonas Makonnen"
-output: 
+subtitle: Springboard Capstone Project
+output:
   beamer_presentation:
     df_print: tibble
-    
 ---
 
 ```{r setup, include=FALSE}
@@ -32,12 +31,16 @@ df_features <- read_rds("df_features.rds")
 - Information about inspection: date, name of the restaurant, cuisine type, violations, grade, actions taken by the DOHMH, etc. 
 
 ```{r }
-df_tame %>% select(-before_slash, -after_slash) %>%
-  names() %>% 
-  matrix(8, 3) %>% 
-  as_data_frame() %>% 
+df_tame %>% 
+  select(-before_slash, -after_slash)  %>%
+  names() %>%
+  matrix(8, 3) %>%
+  as_data_frame() %>%
   rename(Var = V1, Var = V2, Var = V3)
 ```
+## EDA
+
+Descriptive analysis of individual variables ...
 
 ## EDA (Action taken)
 
@@ -50,7 +53,7 @@ df_tame %>%
   group_by(action_taken) %>% 
   summarise(n = n()) %>% 
   ggplot(aes(x = reorder(action_taken, -n), y = n)) +
-  geom_bar(stat = "identity") +
+  geom_bar(stat = "identity", fill = "orange") +
   xlab("Action taken by DOHMH") +
   theme_minimal() +
   theme(
@@ -75,7 +78,7 @@ df_tame %>%
   arrange(rank)
 ```
  
-------
+## EDA (Violation type ... continued)
 
 We will gather these codes into the broader categories: *facility*, *food*, *vermin*, *hygiene*,  and *not_scored*.
 
