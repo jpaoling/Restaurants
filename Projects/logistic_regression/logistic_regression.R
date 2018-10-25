@@ -106,3 +106,19 @@ plot(allEffects(hyp.out))
 ##   Note that the data is not perfectly clean and ready to be modeled. You
 ##   will need to clean up at least some of the variables before fitting
 ##   the model.
+
+str(NH11$everwrk) # check stucture of hypev
+levels(NH11$everwrk) # check levels of hypev
+# collapse all missing values to NA
+NH11$everwrk <- factor(NH11$everwrk, levels = c("2 No", "1 Yes"))
+everw.out <- glm(everwrk ~ age_p + r_maritl,
+                 data = NH11, family = "binomial")
+
+predDat.2 <- with(NH11,
+                  expand.grid(r_maritl = levels(droplevels(NH11$r_maritl)),
+                              age_p = mean(age_p, na.rm = TRUE))
+)
+
+cbind(predDat.2, predict(everw.out, type = "response",
+                       se.fit = TRUE, interval="confidence",
+                       newdata = predDat.2))
