@@ -19,18 +19,15 @@ df_features <- read_rds("df_features.rds")
 
 ## Problem and Client
 
-- Problem 
+- Problem: Prediction of the number of days until next restaurant inspection
 
-- Client (Why do they care?)
+- Potential Clients: Restaurant owners, that could use predictions to prepare for an upcoming inspection ahead of time, and thereby potentially increase their chances to receive a good grade.
 
-- Goal: Prediction of the number of days until next restaurant inspection
-
-- Data: Open Data on restaurant inspections in NYC from 2011 to 2018
 
 
 ## Data
 
-- Restaurant inspections carried out by the Department of Mental Health and Hygiene (DOHMH) in New York City
+- Open Data on restaurant inspections carried out by the Department of Mental Health and Hygiene (DOHMH) in New York City
 
 - Information about inspection: date, name of the restaurant, cuisine type, violations, grade, actions taken by the DOHMH, etc. 
 
